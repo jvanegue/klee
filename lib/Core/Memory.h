@@ -40,10 +40,15 @@ private:
 
 public:
   unsigned id;
-  uint64_t address;
 
-  /// size in bytes
+  // When address and size are concrete, with size in bytes
+  uint64_t address;
   unsigned size;
+
+  // When address and size are symbolic
+  ref<Expr> constraint_addr;  
+  ref<Expr>  constraint_size;
+
   mutable std::string name;
 
   bool isLocal;
@@ -77,20 +82,50 @@ public:
       id(counter++), 
       address(_address),
       size(0),
+      constraint_addr(0),
+      constraint_size(0),
       isFixed(true),
       parent(NULL),
       allocSite(0) {
   }
 
+  MemoryObject(ref<Expr> _address, ref<Expr> _size, 
+               bool _isLocal, bool _isGlobal, bool _isFixed,
+               const llvm::Value *_allocSite,
+               MemoryManager *_parent)
+    : refCount(0), 
+      id(counter++),
+      
+      address(0),
+      size(0),
+      constraint_addr(_address),
+      constraint_size(_size),
+
+      name("unnamed"),
+      isLocal(_isLocal),
+      isGlobal(_isGlobal),
+      isFixed(_isFixed),
+      fake_object(false),
+      isUserSpecified(false),
+      parent(_parent), 
+      allocSite(_allocSite) {
+  }
+
+
+	       
   MemoryObject(uint64_t _address, unsigned _size, 
                bool _isLocal, bool _isGlobal, bool _isFixed,
                const llvm::Value *_allocSite,
                MemoryManager *_parent)
     : refCount(0), 
       id(counter++),
+
       address(_address),
       size(_size),
-      name("unnamed"),
+      constraint_addr(0),
+      constraint_size(0),
+      
+        name("unnamed"),
       isLocal(_isLocal),
       isGlobal(_isGlobal),
       isFixed(_isFixed),
@@ -121,17 +156,24 @@ public:
     return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
   ref<Expr> getBoundsCheckPointer(ref<Expr> pointer, unsigned bytes) const {
-    return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
+    //return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
+    return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    if (size==0) {
+    if (size == 0 && constraint_size == 0) {
       return EqExpr::create(offset, 
                             ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
+    } else if (size != 0) {
       return UltExpr::create(offset, getSizeExpr());
     }
+    else  {
+      return constraint_size;
+    }
+    
   }
+
+  /*
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
     if (bytes<=size) {
       return UltExpr::create(offset, 
@@ -141,6 +183,8 @@ public:
       return ConstantExpr::alloc(0, Expr::Bool);
     }
   }
+  */
+
 };
 
 class ObjectState {

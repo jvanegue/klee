@@ -3155,6 +3155,8 @@ void Executor::executeAlloc(ExecutionState &state,
                             bool zeroMemory,
                             const ObjectState *reallocFrom) {
   size = toUnique(state, size);
+
+  /* When the size is constant */
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
     const llvm::Value *allocSite = state.prevPC->inst;
     size_t allocationAlignment = getAllocationAlignment(allocSite);
@@ -3180,7 +3182,41 @@ void Executor::executeAlloc(ExecutionState &state,
         state.addressSpace.unbindObject(reallocFrom->getObject());
       }
     }
-  } else {
+  }
+
+  /* This is when the size is not constant */
+  else
+    {
+      MemoryObject *mo = memory->allocateWithConstraint(size, isLocal, false, 
+							state.prevPC->inst);
+      if (!mo) {
+	bindLocal(target, state, 
+		  ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+      } else {
+	ObjectState *os = bindObjectInState(state, mo, isLocal);
+	if (zeroMemory) {
+	  os->initializeToZero();
+	} else {
+	  os->initializeToRandom();
+	}
+	bindLocal(target, state, mo->getBaseExpr());
+	
+	if (reallocFrom) {
+
+	  assert(false && "FIXME: Unhandled realloc case with non-constant size");      
+	  
+	  unsigned count = std::min(reallocFrom->size, os->size);
+	  for (unsigned i=0; i<count; i++)
+	    os->write(i, reallocFrom->read8(i));
+	  state.addressSpace.unbindObject(reallocFrom->getObject());
+	}
+      }
+      
+    }
+
+  
+
+  //else {
     // XXX For now we just pick a size. Ideally we would support
     // symbolic sizes fully but even if we don't it would be better to
     // "smartly" pick a value, for example we could fork and pick the
@@ -3192,6 +3228,7 @@ void Executor::executeAlloc(ExecutionState &state,
     // return argument first). This shows up in pcre when llvm
     // collapses the size expression with a select.
 
+    /*
     ref<ConstantExpr> example;
     bool success = solver->getValue(state, size, example);
     assert(success && "FIXME: Unhandled solver failure");
@@ -3209,9 +3246,31 @@ void Executor::executeAlloc(ExecutionState &state,
         break;
       example = tmp;
     }
+    */
 
-    StatePair fixedSize = fork(state, EqExpr::create(example, size), true);
+    //bool res;
+    //bool success = solver->mayBeTrue(state, size, res);
+    //assert(success && "FIXME: Unable to add case where size is a constraint");      
     
+    //StatePair constrainedSize = fork(state, size, true);
+
+    /* Is this really needed? */
+    /*
+    if (constrainedSize.first)
+      {
+	bindLocal(target, *constrainedSize.first, size);
+        //executeAlloc(*constrainedSize.first, size, isLocal,
+	//           target, zeroMemory, reallocFrom);
+      }
+    else
+      {
+	bindLocal(target, *constrainedSize.second, NotExpr::alloc(size));
+        //executeAlloc(*constrainedSize.second, size, isLocal,
+	//           target, zeroMemory, reallocFrom);
+      }
+    */
+    
+    /*
     if (fixedSize.second) { 
       // Check for exactly two values
       ref<ConstantExpr> tmp;
@@ -3256,7 +3315,11 @@ void Executor::executeAlloc(ExecutionState &state,
     if (fixedSize.first) // can be zero when fork fails
       executeAlloc(*fixedSize.first, example, isLocal, 
                    target, zeroMemory, reallocFrom);
-  }
+    */
+
+  //}
+
+ 
 }
 
 void Executor::executeFree(ExecutionState &state,
@@ -3356,7 +3419,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool inBounds;
     solver->setTimeout(coreSolverTimeout);
     bool success = solver->mustBeTrue(state, 
-                                      mo->getBoundsCheckOffset(offset, bytes),
+                                      //mo->getBoundsCheckOffset(offset, bytes),
+				      mo->getBoundsCheckOffset(offset),
                                       inBounds);
     solver->setTimeout(0);
     if (!success) {
@@ -3403,6 +3467,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;
     const ObjectState *os = i->second;
+
+    //std::cout << "[JV] FOUND MEMORY OBJECT " << mo->name << " in RESOLUTION LIST" << std::endl;
+    
     ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
     
     StatePair branches = fork(*unbound, inBounds, true);

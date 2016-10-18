@@ -12,6 +12,9 @@
 #include "MemoryManager.h"
 
 #include "klee/Expr.h"
+
+//#include <metaSMT/frontend/Array.hpp>
+
 #include "klee/Internal/Support/ErrorHandling.h"
 
 #include "llvm/Support/CommandLine.h"
@@ -19,6 +22,10 @@
 
 #include <inttypes.h>
 #include <sys/mman.h>
+	
+#include "klee/util/ArrayCache.h"
+#include <sys/mman.h>
+#include <stdlib.h>
 
 using namespace klee;
 
@@ -89,6 +96,29 @@ MemoryManager::~MemoryManager() {
 
   if (DeterministicAllocation)
     munmap(deterministicSpace, spaceSize);
+}
+
+
+MemoryObject *MemoryManager::allocateWithConstraint(ref<Expr> size, bool isLocal,
+						    bool isGlobal,
+						    const llvm::Value *allocSite,
+						    size_t alignment) {
+
+  ++stats::allocations;
+
+  Expr::Width w = Context::get().getPointerWidth();
+
+  std::stringstream ss;
+  ss << rand();
+  
+  const Array *array = getArrayCache()->CreateArray("arg_" + ss.str(), w);
+  ref<Expr> address = Expr::createTempRead(array, w);
+  
+  MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
+                                       allocSite, this);
+
+  objects.insert(res);
+  return res;
 }
 
 MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
