@@ -48,6 +48,7 @@ public:
   // When address and size are symbolic
   ref<Expr> constraint_addr;  
   ref<Expr>  constraint_size;
+  ref<Expr>  symbolic_size;
 
   mutable std::string name;
 
@@ -86,6 +87,7 @@ public:
       size(0),
       constraint_addr(0),
       constraint_size(0),
+      symbolic_size(0),
       isFixed(true),
       parent(NULL),
       allocSite(0) {
@@ -126,6 +128,7 @@ public:
       size(_size),
       constraint_addr(0),
       constraint_size(0),
+      symbolic_size(0),
       
         name("unnamed"),
       isLocal(_isLocal),
@@ -159,24 +162,25 @@ public:
     return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
   ref<Expr> getBoundsCheckPointer(ref<Expr> pointer, unsigned bytes) const {
-    //return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
-    return getBoundsCheckOffset(getOffsetExpr(pointer));
+    return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
+    //return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    if (size == 0 && constraint_size == 0) {
+    //if (size == 0 && constraint_size == 0) {
+    if (size == 0) {
       return EqExpr::create(offset, 
                             ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else if (size != 0) {
+    //} else if (size != 0) {
+    } else { 
       return UltExpr::create(offset, getSizeExpr());
     }
-    else  {
-      return constraint_size;
-    }
+    //else  {
+    //  return constraint_size;
+    //}
     
   }
 
-  /*
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
     if (bytes<=size) {
       return UltExpr::create(offset, 
@@ -186,7 +190,6 @@ public:
       return ConstantExpr::alloc(0, Expr::Bool);
     }
   }
-  */
 
 };
 
