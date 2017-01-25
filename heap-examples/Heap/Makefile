@@ -1,11 +1,12 @@
 SRC = heap.c 
 OBJ = $(SRC:.c=.bc)
-CLG = clang-3.4
+CLG = clang
+CFLAGS = -I../../include
 
-all: clean comp run
+all: clean comp
 
 comp:
-	$(CLG) -emit-llvm -c -g $(SRC)
+	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC)
 
 run:
 	klee $(OBJ)

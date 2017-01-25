@@ -260,6 +260,8 @@ private:
                     ExactResolutionList &results,
                     const std::string &name);
 
+  uint64_t getLowerBound(ExecutionState &state, ref<Expr> size);
+
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
   ///

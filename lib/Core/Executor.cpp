@@ -3148,6 +3148,52 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
   return os;
 }
 
+
+/* \brief Find the minimum value of <size> that satisfies the state's
+ * constraints.
+
+ * \description We start by any values which satisfies the state's
+ * constraints, and then divide by 2 until the size is 0 or
+ * constraints are not satisfied anymore 
+ * 
+ * \param state Execution state with constraints on size
+ * \param size  The variable for which we look for the lower bound
+ * \return Lower bound
+ */
+//ref<ConstantExpr> getLowerBound(ExecutionState &state,
+uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
+{
+  /* Get the start value which satisfies the constraints */
+  ref<ConstantExpr> value;
+  bool success = solver->getValue(state, size, value);
+  assert(success && "FIXME: Unhandled solver failure");
+  (void) success;
+  Expr::Width W = value->getWidth();
+  ref<ConstantExpr> tmp;
+  
+  /* Use binary search */
+  ref<ConstantExpr> L = ConstantExpr::alloc(0, W);
+  ref<ConstantExpr> R = value;
+  while (L->Ult(R)->isTrue())
+  {
+    /* tmp = (L+R)/2 */
+    tmp = (L->Add(R))->LShr(ConstantExpr::alloc(1, W));
+    bool res;
+    bool success = solver->mayBeTrue(state, EqExpr::create(tmp, size), res);
+    assert(success && "FIXME: Unhandled solver failure");      
+    (void) success;
+    if(res)
+    {
+      value = tmp;
+      R = tmp;
+    }
+    else
+      L = tmp;
+  }
+  
+  return value->getZExtValue();
+}
+
 void Executor::executeAlloc(ExecutionState &state,
                             ref<Expr> size,
                             bool isLocal,
@@ -3157,12 +3203,21 @@ void Executor::executeAlloc(ExecutionState &state,
   size = toUnique(state, size);
 
   /* When the size is constant */
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
-    const llvm::Value *allocSite = state.prevPC->inst;
-    size_t allocationAlignment = getAllocationAlignment(allocSite);
-    MemoryObject *mo =
-        memory->allocate(CE->getZExtValue(), isLocal, /*isGlobal=*/false,
-                         allocSite, allocationAlignment);
+  /* ivan: converted to general case */
+  MemoryObject *mo;
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) 
+    {
+      mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
+			    state.prevPC->inst);
+    } else
+    {
+      uint64_t lower_bound = getLowerBound(state, size);
+      llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
+      mo = memory->allocate(lower_bound, isLocal, false, state.prevPC->inst);
+      mo->symbolic_size = size;
+    }
+
+  {
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
@@ -3185,8 +3240,10 @@ void Executor::executeAlloc(ExecutionState &state,
   }
 
   /* This is when the size is not constant */
-  else
+  //else
     {
+#if 0
+      /*** Julien's changes Begin ***/
       MemoryObject *mo = memory->allocateWithConstraint(size, isLocal, false, 
 							state.prevPC->inst);
       if (!mo) {
@@ -3211,7 +3268,8 @@ void Executor::executeAlloc(ExecutionState &state,
 	  state.addressSpace.unbindObject(reallocFrom->getObject());
 	}
       }
-      
+      /*** Julien's changes End***/
+#endif
     }
 
   
@@ -3419,8 +3477,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     bool inBounds;
     solver->setTimeout(coreSolverTimeout);
     bool success = solver->mustBeTrue(state, 
-                                      //mo->getBoundsCheckOffset(offset, bytes),
-				      mo->getBoundsCheckOffset(offset),
+                                      mo->getBoundsCheckOffset(offset, bytes),
+				      //mo->getBoundsCheckOffset(offset),
                                       inBounds);
     solver->setTimeout(0);
     if (!success) {
