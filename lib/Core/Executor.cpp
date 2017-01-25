@@ -3165,32 +3165,43 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 {
   /* Get the start value which satisfies the constraints */
   ref<ConstantExpr> value;
-  bool success = solver->getValue(state, size, value);
+  bool res, success;
+  success = solver->getValue(state, size, value);
+  //llvm::outs() << "Executor::getLowerBound(): fell back to custom binary search\n";
   assert(success && "FIXME: Unhandled solver failure");
   (void) success;
   Expr::Width W = value->getWidth();
   ref<ConstantExpr> tmp;
   
-  /* Use binary search */
+  /* Binary search */
   ref<ConstantExpr> L = ConstantExpr::alloc(0, W);
   ref<ConstantExpr> R = value;
+  int counter = 0;
   while (L->Ult(R)->isTrue())
   {
-    /* tmp = (L+R)/2 */
-    tmp = (L->Add(R))->LShr(ConstantExpr::alloc(1, W));
-    bool res;
-    bool success = solver->mayBeTrue(state, EqExpr::create(tmp, size), res);
+    counter++;
+    //llvm::outs() << "\nExecutor::getLowerBound(): loop iteration " << counter << ", L = " << L << ", R = " << R << "\n";
+    tmp = (L->Add(R))->LShr(ConstantExpr::alloc(1, W)); /* tmp = (L+R)/2 */
+    success = solver->mayBeTrue(state, EqExpr::create(tmp, size), res);
     assert(success && "FIXME: Unhandled solver failure");      
     (void) success;
     if(res)
     {
+      //llvm::outs() << "Executor::getLowerBound(): tmp =  " << tmp << " satisfies the conds\n";
       value = tmp;
-      R = tmp;
+      R = tmp->Sub(ConstantExpr::alloc(1, W));
     }
     else
-      L = tmp;
+    {
+      //llvm::outs() << "Executor::getLowerBound(): tmp =  " << tmp << " does not satisfy the conds\n";
+      L = tmp->Add(ConstantExpr::alloc(1, W));
+    }
+    //llvm::outs() << "Executor::getLowerBound(): loop iteration " << counter << ", L = " << L << ", R = " << R << "\n";
   }
-  
+  success = solver->mayBeTrue(state, EqExpr::create(L, size), res);
+  assert(success && "FIXME: Unhandled solver failure");      
+  if(res)
+    value = L;
   return value->getZExtValue();
 }
 
@@ -3203,25 +3214,53 @@ void Executor::executeAlloc(ExecutionState &state,
   size = toUnique(state, size);
 
   /* When the size is constant */
-  /* ivan: converted to general case */
+  /* IVAN: converted to general case */
   MemoryObject *mo;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) 
-    {
-      mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
-			    state.prevPC->inst);
-    } else
-    {
-      uint64_t lower_bound = getLowerBound(state, size);
-      llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
-      mo = memory->allocate(lower_bound, isLocal, false, state.prevPC->inst);
-      mo->symbolic_size = size;
+  {
+    mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
+                                        state.prevPC->inst);
+  } else
+  {
+    uint64_t lower_bound = INT_MAX;
+    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
+
+    // See if a *really* big value is possible. If so assume
+    // malloc will fail for it, so lets fork and return 0.
+    StatePair hugeSize = 
+      fork(state, 
+           UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth())), 
+           true);
+    if (hugeSize.second) {
+      llvm::outs() << "Executor::executeAlloc(): found huge malloc, returning 0.\n";
+      klee_warning("Found huge malloc, returning 0.\n");
+      bindLocal(target, *hugeSize.second, 
+                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+     /* We are done with hugeSize.second */
     }
+
+    assert(hugeSize.first);
+    assert(hugeSize.first == &state);
+
+    /* IVANP: We could have used 'getRange()' as below but it seems slower then
+     * our custom binary search */
+    /*
+       std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
+       if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
+         lower_bound = lowerbound_const_exp->getZExtValue();
+    */
+    lower_bound = getLowerBound(state, size);
+    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
+    mo = memory->allocate(lower_bound, isLocal, false, state.prevPC->inst);
+    mo->symbolic_size = size;
+  }
 
   {
     if (!mo) {
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
     } else {
+      llvm::outs() << "Executor::executeAlloc(): Binding new object into state\n";
       ObjectState *os = bindObjectInState(state, mo, isLocal);
       if (zeroMemory) {
         os->initializeToZero();
@@ -3238,6 +3277,7 @@ void Executor::executeAlloc(ExecutionState &state,
       }
     }
   }
+  //llvm::outs() << "Executor::executeAlloc(): Finished\n";
 
   /* This is when the size is not constant */
   //else
