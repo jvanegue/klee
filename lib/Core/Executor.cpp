@@ -3214,14 +3214,13 @@ void Executor::executeAlloc(ExecutionState &state,
   size = toUnique(state, size);
 
   /* When the size is constant */
-  /* IVAN: converted to general case */
   MemoryObject *mo;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) 
   {
     mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
                                         state.prevPC->inst);
-  } else
-  {
+  } else /* When the size is symbolic */
+  { 
     uint64_t lower_bound = INT_MAX;
     llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
 
@@ -3243,13 +3242,13 @@ void Executor::executeAlloc(ExecutionState &state,
     assert(hugeSize.first == &state);
 
     /* IVANP: We could have used 'getRange()' as below but it seems slower then
-     * our custom binary search */
+     * our custom binary search <getLowerBound()>*/
     /*
        std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
        if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
          lower_bound = lowerbound_const_exp->getZExtValue();
     */
-    lower_bound = getLowerBound(state, size);
+    lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
     llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
     mo = memory->allocate(lower_bound, isLocal, false, state.prevPC->inst);
     mo->symbolic_size = size;
@@ -3277,147 +3276,6 @@ void Executor::executeAlloc(ExecutionState &state,
       }
     }
   }
-  //llvm::outs() << "Executor::executeAlloc(): Finished\n";
-
-  /* This is when the size is not constant */
-  //else
-    {
-#if 0
-      /*** Julien's changes Begin ***/
-      MemoryObject *mo = memory->allocateWithConstraint(size, isLocal, false, 
-							state.prevPC->inst);
-      if (!mo) {
-	bindLocal(target, state, 
-		  ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-      } else {
-	ObjectState *os = bindObjectInState(state, mo, isLocal);
-	if (zeroMemory) {
-	  os->initializeToZero();
-	} else {
-	  os->initializeToRandom();
-	}
-	bindLocal(target, state, mo->getBaseExpr());
-	
-	if (reallocFrom) {
-
-	  assert(false && "FIXME: Unhandled realloc case with non-constant size");      
-	  
-	  unsigned count = std::min(reallocFrom->size, os->size);
-	  for (unsigned i=0; i<count; i++)
-	    os->write(i, reallocFrom->read8(i));
-	  state.addressSpace.unbindObject(reallocFrom->getObject());
-	}
-      }
-      /*** Julien's changes End***/
-#endif
-    }
-
-  
-
-  //else {
-    // XXX For now we just pick a size. Ideally we would support
-    // symbolic sizes fully but even if we don't it would be better to
-    // "smartly" pick a value, for example we could fork and pick the
-    // min and max values and perhaps some intermediate (reasonable
-    // value).
-    // 
-    // It would also be nice to recognize the case when size has
-    // exactly two values and just fork (but we need to get rid of
-    // return argument first). This shows up in pcre when llvm
-    // collapses the size expression with a select.
-
-    /*
-    ref<ConstantExpr> example;
-    bool success = solver->getValue(state, size, example);
-    assert(success && "FIXME: Unhandled solver failure");
-    (void) success;
-    
-    // Try and start with a small example.
-    Expr::Width W = example->getWidth();
-    while (example->Ugt(ConstantExpr::alloc(128, W))->isTrue()) {
-      ref<ConstantExpr> tmp = example->LShr(ConstantExpr::alloc(1, W));
-      bool res;
-      bool success = solver->mayBeTrue(state, EqExpr::create(tmp, size), res);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (!res)
-        break;
-      example = tmp;
-    }
-    */
-
-    //bool res;
-    //bool success = solver->mayBeTrue(state, size, res);
-    //assert(success && "FIXME: Unable to add case where size is a constraint");      
-    
-    //StatePair constrainedSize = fork(state, size, true);
-
-    /* Is this really needed? */
-    /*
-    if (constrainedSize.first)
-      {
-	bindLocal(target, *constrainedSize.first, size);
-        //executeAlloc(*constrainedSize.first, size, isLocal,
-	//           target, zeroMemory, reallocFrom);
-      }
-    else
-      {
-	bindLocal(target, *constrainedSize.second, NotExpr::alloc(size));
-        //executeAlloc(*constrainedSize.second, size, isLocal,
-	//           target, zeroMemory, reallocFrom);
-      }
-    */
-    
-    /*
-    if (fixedSize.second) { 
-      // Check for exactly two values
-      ref<ConstantExpr> tmp;
-      bool success = solver->getValue(*fixedSize.second, size, tmp);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      bool res;
-      success = solver->mustBeTrue(*fixedSize.second, 
-                                   EqExpr::create(tmp, size),
-                                   res);
-      assert(success && "FIXME: Unhandled solver failure");      
-      (void) success;
-      if (res) {
-        executeAlloc(*fixedSize.second, tmp, isLocal,
-                     target, zeroMemory, reallocFrom);
-      } else {
-        // See if a *really* big value is possible. If so assume
-        // malloc will fail for it, so lets fork and return 0.
-        StatePair hugeSize = 
-          fork(*fixedSize.second, 
-               UltExpr::create(ConstantExpr::alloc(1<<31, W), size), 
-               true);
-        if (hugeSize.first) {
-          klee_message("NOTE: found huge malloc, returning 0");
-          bindLocal(target, *hugeSize.first, 
-                    ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-        }
-        
-        if (hugeSize.second) {
-
-          std::string Str;
-          llvm::raw_string_ostream info(Str);
-          ExprPPrinter::printOne(info, "  size expr", size);
-          info << "  concretization : " << example << "\n";
-          info << "  unbound example: " << tmp << "\n";
-          terminateStateOnError(*hugeSize.second, "concretized symbolic size",
-                                Model, NULL, info.str());
-        }
-      }
-    }
-
-    if (fixedSize.first) // can be zero when fork fails
-      executeAlloc(*fixedSize.first, example, isLocal, 
-                   target, zeroMemory, reallocFrom);
-    */
-
-  //}
-
- 
 }
 
 void Executor::executeFree(ExecutionState &state,
@@ -3518,7 +3376,6 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     solver->setTimeout(coreSolverTimeout);
     bool success = solver->mustBeTrue(state, 
                                       mo->getBoundsCheckOffset(offset, bytes),
-				      //mo->getBoundsCheckOffset(offset),
                                       inBounds);
     solver->setTimeout(0);
     if (!success) {

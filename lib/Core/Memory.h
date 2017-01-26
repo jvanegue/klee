@@ -160,22 +160,15 @@ public:
   }
   ref<Expr> getBoundsCheckPointer(ref<Expr> pointer, unsigned bytes) const {
     return getBoundsCheckOffset(getOffsetExpr(pointer), bytes);
-    //return getBoundsCheckOffset(getOffsetExpr(pointer));
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    //if (size == 0 && constraint_size == 0) {
-    if (size == 0) {
+    if (size==0) {
       return EqExpr::create(offset, 
                             ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    //} else if (size != 0) {
-    } else { 
+    } else {
       return UltExpr::create(offset, getSizeExpr());
     }
-    //else  {
-    //  return constraint_size;
-    //}
-    
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
