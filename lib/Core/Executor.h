@@ -261,6 +261,10 @@ private:
                     const std::string &name);
 
   uint64_t getLowerBound(ExecutionState &state, ref<Expr> size);
+  bool resolveStoreDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op);
+  ref<Expr> getDestObjectAddress(ExecutionState &state, KInstruction *ki);
+  void resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op);
+  void resizeAllDynamicObjects(ExecutionState &state);
 
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.

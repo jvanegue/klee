@@ -41,14 +41,18 @@ private:
 public:
   unsigned id;
 
-  // When address and size are concrete, with size in bytes
+  // Guest address, used a the key in MemoryMap and thus used to find a memory object by address
+  // TODO: rename to guest address
   uint64_t address;
+  // Points to the memory returned by malloc() on the host
+  uint64_t host_address;
   unsigned size;
 
   // When address and size are symbolic
   ref<Expr> constraint_addr;  
   ref<Expr>  constraint_size;
   ref<Expr>  symbolic_size;
+  bool isSizeDynamic;
 
   mutable std::string name;
 
@@ -82,10 +86,12 @@ public:
     : refCount(0),
       id(counter++), 
       address(_address),
+      host_address(_address),
       size(0),
       constraint_addr(0),
       constraint_size(0),
       symbolic_size(0),
+      isSizeDynamic(false),
       isFixed(true),
       parent(NULL),
       allocSite(0) {
@@ -123,10 +129,12 @@ public:
       id(counter++),
 
       address(_address),
+      host_address(_address),
       size(_size),
       constraint_addr(0),
       constraint_size(0),
       symbolic_size(0),
+      isSizeDynamic(false),
       
         name("unnamed"),
       isLocal(_isLocal),
