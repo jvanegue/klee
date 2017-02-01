@@ -88,7 +88,7 @@ MemoryManager::~MemoryManager() {
   while (!objects.empty()) {
     MemoryObject *mo = *objects.begin();
     if (!mo->isFixed && !DeterministicAllocation)
-      free((void *)mo->address);
+      free((void *)mo->host_address);
     objects.erase(mo);
     delete mo;
   }
@@ -116,6 +116,26 @@ MemoryObject *MemoryManager::allocateWithConstraint(ref<Expr> size, bool isLocal
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this);
 
+  objects.insert(res);
+  return res;
+}
+
+MemoryObject *MemoryManager::allocateWithSymbolicSize(ref<Expr> size, uint64_t size_lower_bound, bool isLocal,
+                                      bool isGlobal,
+                                      const llvm::Value *allocSite,
+                                      size_t alignment) {
+
+  assert(!DeterministicAllocation && "Deterministic allocation is not supported for symbolic sizes");
+  assert((alignment <= 8) && "alignments less than 8 are not supported for symbolic sizes");
+  uint64_t host_address = 0;
+  host_address = (uint64_t)malloc(size_lower_bound);
+  if (!host_address)
+    return 0;
+  ++stats::allocations;
+  MemoryObject *res = new MemoryObject(host_address, size_lower_bound, isLocal, isGlobal, false,
+                                       allocSite, this);
+  res->symbolic_size = size;
+  res->isSizeDynamic = true;
   objects.insert(res);
   return res;
 }
@@ -172,6 +192,8 @@ MemoryObject *MemoryManager::allocate(uint64_t size, bool isLocal,
     return 0;
 
   ++stats::allocations;
+  //MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
+  //                                     allocSite, this);
   MemoryObject *res = new MemoryObject(address, size, isLocal, isGlobal, false,
                                        allocSite, this);
   objects.insert(res);
@@ -201,7 +223,7 @@ void MemoryManager::deallocate(const MemoryObject *mo) { assert(0); }
 void MemoryManager::markFreed(MemoryObject *mo) {
   if (objects.find(mo) != objects.end()) {
     if (!mo->isFixed && !DeterministicAllocation)
-      free((void *)mo->address);
+      free((void *)mo->host_address);
     objects.erase(mo);
   }
 }

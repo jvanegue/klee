@@ -45,6 +45,9 @@ public:
 
   MemoryObject *allocateWithConstraint(ref<Expr> size, bool isLocal, bool isGlobal,
 				       const llvm::Value *allocSite, size_t alignment = 8);
+
+  MemoryObject *allocateWithSymbolicSize(ref<Expr> size, uint64_t size_lower_bound, bool isLocal, bool isGlobal,
+				       const llvm::Value *allocSite, size_t alignment = 8);
   
   MemoryObject *allocateFixed(uint64_t address, uint64_t size,
                               const llvm::Value *allocSite);

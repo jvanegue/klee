@@ -125,6 +125,7 @@ namespace klee {
     /// \retval true The copy succeeded. 
     /// \retval false The copy failed because a read-only object was modified.
     bool copyInConcretes();
+    uint64_t getFreeMemchunkAtGuest();
   };
 } // End klee namespace
 

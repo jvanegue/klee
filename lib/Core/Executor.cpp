@@ -1109,6 +1109,8 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
 
 void Executor::bindLocal(KInstruction *target, ExecutionState &state, 
                          ref<Expr> value) {
+  if(!target)
+    return;
   getDestCell(state, target).value = value;
 }
 
@@ -2122,13 +2124,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Store: {
     ref<Expr> base = eval(ki, 1, state).value;
     ref<Expr> value = eval(ki, 0, state).value;
-    executeMemoryOperation(state, true, base, value, 0);
+    //executeMemoryOperation(state, true, base, value, 0);
+    executeMemoryOperation(state, true, base, value, ki);
     break;
   }
 
   case Instruction::GetElementPtr: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
     ref<Expr> base = eval(ki, 0, state).value;
+    state.getElmntPtrBases[ki->inst] = base;
 
     for (std::vector< std::pair<unsigned, uint64_t> >::iterator 
            it = kgepi->indices.begin(), ie = kgepi->indices.end(); 
@@ -3209,12 +3213,12 @@ void Executor::executeAlloc(ExecutionState &state,
   MemoryObject *mo;
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) 
   {
-    mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
+    mo = memory->allocate(CE->getZExtValue(), isLocal, false,
                                         state.prevPC->inst);
   } else /* When the size is symbolic */
   { 
     uint64_t lower_bound = INT_MAX;
-    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
+    //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
 
     // See if a *really* big value is possible. If so assume
     // malloc will fail for it, so lets fork and return 0.
@@ -3223,13 +3227,15 @@ void Executor::executeAlloc(ExecutionState &state,
            UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth())), 
            true);
     if (hugeSize.second) {
-      llvm::outs() << "Executor::executeAlloc(): found huge malloc, returning 0.\n";
-      klee_warning("Found huge malloc, returning 0.\n");
+      klee_warning("Found huge malloc, forking and returning 0 for the second state.\n");
       bindLocal(target, *hugeSize.second, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
      /* We are done with hugeSize.second */
     }
 
+    //llvm::outs() << "Executor::executeAlloc(): hugeSize.first = " << hugeSize.first << "\n";
+    if(!hugeSize.first) // Symbolic size can only be huge
+      return;
     assert(hugeSize.first);
     assert(hugeSize.first == &state);
 
@@ -3241,9 +3247,10 @@ void Executor::executeAlloc(ExecutionState &state,
          lower_bound = lowerbound_const_exp->getZExtValue();
     */
     lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
-    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
-    mo = memory->allocate(lower_bound, isLocal, false, state.prevPC->inst);
-    mo->symbolic_size = size;
+    //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
+    mo = memory->allocateWithSymbolicSize(size, lower_bound, isLocal, false, state.prevPC->inst);
+    mo->address = state.addressSpace.getFreeMemchunkAtGuest();
+    //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->address << "; size: " << mo->size << "\n";
   }
 
   {
@@ -3251,7 +3258,7 @@ void Executor::executeAlloc(ExecutionState &state,
       bindLocal(target, state, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
     } else {
-      llvm::outs() << "Executor::executeAlloc(): Binding new object into state\n";
+      //llvm::outs() << "Executor::executeAlloc(): Binding new object into state\n";
       ObjectState *os = bindObjectInState(state, mo, isLocal);
       if (zeroMemory) {
         os->initializeToZero();
@@ -3265,6 +3272,12 @@ void Executor::executeAlloc(ExecutionState &state,
         for (unsigned i=0; i<count; i++)
           os->write(i, reallocFrom->read8(i));
         state.addressSpace.unbindObject(reallocFrom->getObject());
+	if(!target) /* If we realloc dynamic object */
+	{
+	  mo->address = reallocFrom->getObject()->address;
+	  mo->allocSite = reallocFrom->getObject()->allocSite;
+          //llvm::outs() << "Executor::executeAlloc(): relocated to: " << mo->address << "; size: " << mo->size << "\n";
+	}
       }
     }
   }
@@ -3327,6 +3340,160 @@ void Executor::resolveExact(ExecutionState &state,
     terminateStateOnError(*unbound, "memory error: invalid pointer: " + name,
                           Ptr, NULL, getAddressInfo(*unbound, p));
   }
+}
+
+/* \brief Find the base of the object for Store instruction
+ * TODO: 1. Add better description
+ *       2. Improve readability
+ *       3. Add alloca cache 
+*/
+ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki)
+{
+    StoreInst* SI = dyn_cast<StoreInst>(ki->inst);
+    assert(SI);
+    //llvm::outs() << "Executor::getDestObjectAddress():Store: " << *(ki->inst) << "\n";
+    if (Instruction *gep = dyn_cast<Instruction>(SI->getOperand(1)))
+    {
+      if (gep->getOpcode() == Instruction::GetElementPtr)
+      {
+        if(state.getElmntPtrBases.count(gep))
+        {
+          //llvm::outs() << "Executor::getDestObjectAddress(): found cached getElementPtr, base = "
+          //             <<  state.getElmntPtrBases[gep] << "\n";
+          return state.getElmntPtrBases[gep];
+        }
+      } 
+      if (gep->getOpcode() == Instruction::Alloca)
+      {
+        llvm::outs() << "                                alloc instr: " << *gep << "\n";
+      }
+      else
+        llvm::outs() << "                                other instr: " << *gep << "\n";
+    }
+    else if (llvm::ConstantExpr *CE = dyn_cast<llvm::ConstantExpr>(SI->getOperand(1)))
+    {
+      if (CE->getOpcode() == Instruction::GetElementPtr)
+      {
+        assert(CE->isGEPWithNoNotionalOverIndexing());
+        llvm::outs() << "                                      constant gep = \n";// <<  << "\n";
+        CE->print(outs());
+        if (llvm::ConstantInt *CE1 = dyn_cast<llvm::ConstantInt>(CE->getOperand(0)))
+        {
+          llvm::outs() << "\n                                      base value = " << CE1->getZExtValue() << "\n";
+          return ConstantExpr::create(CE1->getZExtValue(), Context::get().getPointerWidth());
+        }
+        //else if(llvm::GlobalVariable *GV = dyn_cast<llvm::GlobalVariable>(CE->getOperand(0)))
+        else if(llvm::GlobalValue *GV = dyn_cast<llvm::GlobalValue>(CE->getOperand(0)))
+        {
+          assert(globalObjects.count(GV));
+          const MemoryObject *mo = globalObjects[GV];
+          //objects.find(mo);
+          const MemoryMap::value_type *res = state.addressSpace.objects.lookup_previous(mo);
+          assert(res);
+          ObjectPair op = *res;
+          const ObjectState *os = op.second;
+          ref<Expr> value_of_global = os->read(0, Context::get().getPointerWidth());
+          //llvm::outs() << "\n                                      base value of GEP is a global, value = " << value_of_global << "\n";
+          //llvm::outs() << "\n                                                                     address = " << globalAddresses[GV] << "\n";
+          return globalAddresses[GV];
+        }
+        else
+          assert(0 && "The base for constant GEP is not a constant or global variable; seems that IvanP doesn's really know llvm...");
+        llvm::outs() << "\n";
+      }
+      //else if (llvm::Constant *CE = dyn_cast<llvm::Constant>(SI->getOperand(1)))
+      else if (llvm::ConstantInt *CE1 = dyn_cast<llvm::ConstantInt>(CE))
+      {
+          llvm::outs() << "                                      constant gep\n";// <<  << "\n";
+          return ConstantExpr::create(CE1->getZExtValue(), Context::get().getPointerWidth());
+      }
+    }
+    else
+    {
+        llvm::outs() << "                                      unknown gep\n";// <<  << "\n";
+        SI->getOperand(1)->print(outs());
+        llvm::outs() << "\n";
+    }
+    return ConstantExpr::create(0, Context::get().getPointerWidth());
+}
+
+/* \brief Extract the base of destination object for Store instruction
+ *
+ * \description The destination opearnd for a Store instruction is often
+ *              getElementPtr instruction, Alloca instruction, or a
+ *              Constant. For all these cases we can extract the base
+ *              address of the corresponding object. Note that during
+ *              execution we record all GetElementPtr and Alloca
+ *              instructions.
+ * 
+ * \param ki The store instruction for which we try to find the dest
+ *           memory object.
+ * \return The destination memory object for the Strore instruction, or
+ *         NULL if could not find.
+ * \TODO: add support for symboolic addresses
+*/
+bool Executor::resolveStoreDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op)
+{
+  ref<Expr> addressExpr = getDestObjectAddress(state, ki);
+  ConstantExpr *tmp = dyn_cast<ConstantExpr>(addressExpr);
+  if(!tmp)
+    return false; /* We don't support symbolic addresses here yet */
+  uint64_t address = tmp->getZExtValue();
+  if(address == 0)
+    return false;
+  bool success = state.addressSpace.resolveOne(tmp, op);
+  assert(success);
+  const MemoryObject *mo = op.first;
+  if(mo->isSizeDynamic)
+    return true;
+  return false;
+}
+
+/* \brief Resize all objects with dynamic size according the state's
+ *        constraints.
+ * 
+ * \param state Consider address space of this state
+ * \return void
+*/
+void Executor::resizeAllDynamicObjects(ExecutionState &state)
+{
+  //llvm::outs() << "Executor::resizeAllDynamicObjects(): inside\n";
+  MemoryMap::iterator op_begin = state.addressSpace.objects.begin();
+  MemoryMap::iterator op_end = state.addressSpace.objects.end();
+
+  const MemoryObject *mo = NULL;
+  const ObjectState *os = NULL;
+  --op_end; // Going from the end
+  while (op_begin != op_end)
+  {
+    mo = op_end->first;
+    os = op_end->second;
+    //llvm::outs() << "Executor::resizeAllDynamicObjects(): considering object at address: " << mo->address << "\n";
+    if(!(mo->isSizeDynamic))
+    {
+      //llvm::outs() << "Executor::resizeAllDynamicObjects(): it's not dynamic\n";
+      break; /* All dynamic objects are grouped at high addresses */
+    }
+    else
+    {
+      //llvm::outs() << "Executor::resizeAllDynamicObjects(): it's dynamic, resizing\n";
+      executeAlloc(state, mo->symbolic_size, false, 0, false, os);
+    }
+    --op_end; // Going from the end
+  }
+}
+
+/* \brief Resize object with dynamic size according the state's
+ *        constraints.
+ * 
+ * \param state Consider memory object from this state
+ * \return void
+*/
+void Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op)
+{
+  const MemoryObject *mo = dyno_op.first;
+  const ObjectState *os = dyno_op.second;
+  executeAlloc(state, mo->symbolic_size, false, 0, false, os);
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
@@ -3399,9 +3566,33 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     }
   } 
 
+  /* We were not able to resovle the address. The reason might be that
+   * a dynamic object should have a bigger size. */
+  if (isWrite && target) {
+    //llvm::outs() << "Executor::executeMemoryOperation(): could not resolve to a non-dynamic object for address = " << address << "";
+    //llvm::outs() << ", will check for dynamically sized now\n";
+    ObjectPair dyno_op;
+    bool resolved = resolveStoreDynammicObject(state, target, dyno_op);
+    if(resolved)
+    {
+      //llvm::outs() << "Executor::executeMemoryOperation(): found dynamic object for this address, will resize it only\n";
+      resizeDynamicObject(state, dyno_op);
+    }
+    else
+    {
+      //llvm::outs() << "Executor::executeMemoryOperation(): could not find dynamic object for this address, will resize all\n";
+      resizeAllDynamicObjects(state);
+    }
+    //llvm::outs() << "Executor::executeMemoryOperation(): Re-executing mem operation\n";
+    executeMemoryOperation(state, true, address, value, 0);
+    return;
+
+  }
+
+  //llvm::outs() << "Executor::executeMemoryOperation(): Resolve adress error path \n";
   // we are on an error path (no resolution, multiple resolution, one
   // resolution with out of bounds)
-  
+ 
   ResolutionList rl;  
   solver->setTimeout(coreSolverTimeout);
   bool incomplete = state.addressSpace.resolve(state, solver, address, rl,
@@ -3410,6 +3601,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   
   // XXX there is some query wasteage here. who cares?
   ExecutionState *unbound = &state;
+  //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = " << rl.size() << " \n";
   
   for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
     const MemoryObject *mo = i->first;

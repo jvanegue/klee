@@ -18,6 +18,16 @@
 #include "../../lib/Core/AddressSpace.h"
 #include "klee/Internal/Module/KInstIterator.h"
 
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/Module.h"
+#else
+#include "llvm/Constants.h"
+#include "llvm/Instructions.h"
+#include "llvm/Module.h"
+#endif
+
 #include <map>
 #include <set>
 #include <vector>
@@ -31,6 +41,7 @@ struct KInstruction;
 class MemoryObject;
 class PTreeNode;
 struct InstructionInfo;
+class PTreeNode;
 
 llvm::raw_ostream &operator<<(llvm::raw_ostream &os, const MemoryMap &mm);
 
@@ -144,6 +155,9 @@ public:
   std::string getFnAlias(std::string fn);
   void addFnAlias(std::string old_fn, std::string new_fn);
   void removeFnAlias(std::string fn);
+
+  // Used to store the base operand of getElementPtr instruction
+  std::map<llvm::Instruction *, ref<Expr> > getElmntPtrBases;
 
 private:
   ExecutionState() : ptreeNode(0) {}
