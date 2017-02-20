@@ -386,7 +386,6 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
 /* Should be called solely from Executor::ExecuteAllocate() */
  void StatsTracker::memAllocated(bool is_const_size)
  {
-   printf("Updating allocation counters... \n");
    numAllocations++;
    if (is_const_size)
      numConstAllocations++;
