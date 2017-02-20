@@ -46,6 +46,13 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+#include <iostream>
+#include <string>
+
+#include "llvm/Support/FormattedStream.h"
+#include "llvm/Support/raw_ostream.h"
+
+
 using namespace llvm;
 using namespace klee;
 
@@ -124,12 +131,25 @@ bool OvershiftCheckPass::runOnModule(Module &M) {
 		bitWidth, false);
             args.push_back(bitWidthC);
 
+
+	    ///// JV added
+	    Value *v = i->getOperand(1);
+	    Type *t = Type::getInt64Ty(getGlobalContext());
+	    ////
+
+	    //std::string str;
+	    //llvm::raw_string_ostream os(str);
+	    //t->print(os);
+	    //std::cout << "Now Creating integer cast with type " << str << std::endl;
+		    
+	    
             CastInst *shift =
-              CastInst::CreateIntegerCast(i->getOperand(1),
-                                          Type::getInt64Ty(ctx),
+              CastInst::CreateIntegerCast(v, 
+                                          t,
                                           false,  /* sign doesn't matter */
                                           "int_cast_to_i64",
-                                          static_cast<Instruction *>(i));
+                                          i);
+
             args.push_back(shift);
 
 

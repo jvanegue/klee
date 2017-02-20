@@ -3215,14 +3215,21 @@ void Executor::executeAlloc(ExecutionState &state,
                             KInstruction *target,
                             bool zeroMemory,
                             const ObjectState *reallocFrom) {
+  
   size = toUnique(state, size);
-
+  
   /* When the size is constant */
   MemoryObject *mo;
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) 
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(size);
+
+  /* Track how many allocations were symbolic and how many were of constant size */
+  if (statsTracker)
+    statsTracker->memAllocated((CE == NULL ? false : true));
+
+  if (CE)
   {
-    mo = memory->allocate(CE->getZExtValue(), isLocal, false,
-                                        state.prevPC->inst);
+      mo = memory->allocate(CE->getZExtValue(), isLocal, false,
+			    state.prevPC->inst);
   } else /* When the size is symbolic */
   { 
     uint64_t lower_bound = INT_MAX;

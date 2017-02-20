@@ -36,30 +36,38 @@ namespace klee {
     Executor &executor;
     std::string objectFilename;
 
-    llvm::raw_fd_ostream *statsFile, *istatsFile;
+    llvm::raw_fd_ostream *statsFile, *istatsFile, *astatsFile;
     double startWallTime;
     
     unsigned numBranches;
     unsigned fullBranches, partialBranches;
 
+    unsigned long long int numAllocations;
+    unsigned long long int numConstAllocations;
+    
     CallPathManager callPathManager;    
 
     bool updateMinDistToUncovered;
 
   public:
     static bool useStatistics();
+    void writeAStatsLine();
 
   private:
     void updateStateStatistics(uint64_t addend);
     void writeStatsHeader();
     void writeStatsLine();
     void writeIStats();
-
+    void writeAStats();
+    
   public:
     StatsTracker(Executor &_executor, std::string _objectFilename,
                  bool _updateMinDistToUncovered);
     ~StatsTracker();
 
+    // called after a malloc operation is called
+    void memAllocated(bool constant_size);
+    
     // called after a new StackFrame has been pushed (for callpath tracing)
     void framePushed(ExecutionState &es, StackFrame *parentFrame);
 

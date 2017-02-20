@@ -96,9 +96,19 @@ namespace {
 		      cl::init(10.),
                       cl::desc("Approximate number of seconds between istats writes (default: 10.0s)"));
 
+  cl::opt<double>
+  AStatsWriteInterval("astats-write-interval",
+		      cl::init(10.),
+                      cl::desc("Approximate number of seconds between astats writes (default: 10.0s)"));
+
   cl::opt<unsigned> IStatsWriteAfterInstructions(
       "istats-write-after-instructions", cl::init(0),
       cl::desc("Write istats after each n instructions, 0 to disable "
+               "(default=0)"));
+
+  cl::opt<unsigned> AStatsWriteAfterInstructions(
+      "astats-write-after-instructions", cl::init(0),
+      cl::desc("Write astats after each n instructions, 0 to disable "
                "(default=0)"));
 
   // XXX I really would like to have dynamic rate control for something like this.
@@ -140,6 +150,17 @@ namespace klee {
     
     void run() { statsTracker->writeStatsLine(); }
   };
+
+  class WriteAStatsTimer : public Executor::Timer {
+    StatsTracker *statsTracker;
+    
+  public:
+    WriteAStatsTimer(StatsTracker *_statsTracker) : statsTracker(_statsTracker) {}
+    ~WriteAStatsTimer() {}
+    
+    void run() { statsTracker->writeAStatsLine(); }
+  };
+  
 
   class UpdateReachableTimer : public Executor::Timer {
     StatsTracker *statsTracker;
@@ -188,6 +209,8 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
     numBranches(0),
     fullBranches(0),
     partialBranches(0),
+    numAllocations(0),
+    numConstAllocations(0),
     updateMinDistToUncovered(_updateMinDistToUncovered) {
 
   if (StatsWriteAfterInstructions > 0 && StatsWriteInterval > 0)
@@ -268,6 +291,13 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
     if (IStatsWriteInterval > 0)
       executor.addTimer(new WriteIStatsTimer(this), IStatsWriteInterval);
   }
+
+  /* Now open allocator stats file */
+  astatsFile = executor.interpreterHandler->openOutputFile("run.astats");
+  assert(astatsFile && "unable to open astats file");
+  if (AStatsWriteInterval > 0)
+    executor.addTimer(new WriteAStatsTimer(this), AStatsWriteInterval);
+  
 }
 
 StatsTracker::~StatsTracker() {  
@@ -275,12 +305,17 @@ StatsTracker::~StatsTracker() {
     delete statsFile;
   if (istatsFile)
     delete istatsFile;
+  if (astatsFile)
+    delete astatsFile;
 }
 
 void StatsTracker::done() {
   if (statsFile)
     writeStatsLine();
 
+  if (astatsFile)
+    writeAStats();
+  
   if (OutputIStats) {
     if (updateMinDistToUncovered)
       computeReachableUncovered();
@@ -341,10 +376,25 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
   if (istatsFile && IStatsWriteAfterInstructions &&
       stats::instructions % IStatsWriteAfterInstructions.getValue() == 0)
     writeIStats();
+
+  if (astatsFile && AStatsWriteAfterInstructions &&
+      stats::instructions % AStatsWriteAfterInstructions.getValue() == 0)
+    writeAStats();
+  
 }
 
 ///
+/* Should be called solely from Executor::ExecuteAllocate() */
+ void StatsTracker::memAllocated(bool is_const_size)
+ {
+   printf("Updating allocation counters... \n");
+   numAllocations++;
+   if (is_const_size)
+     numConstAllocations++;
+ }
 
+
+ 
 /* Should be called _after_ the es->pushFrame() */
 void StatsTracker::framePushed(ExecutionState &es, StackFrame *parentFrame) {
   if (OutputIStats) {
@@ -457,6 +507,22 @@ void StatsTracker::writeStatsLine() {
              << ")\n";
   statsFile->flush();
 }
+
+
+ void StatsTracker::writeAStatsLine() {
+   printf("Updating run.astats file \n");
+   *astatsFile << "Total allocations: " << numAllocations << "\n";
+   *astatsFile << "Const allocations: " << numConstAllocations << "\n";
+   astatsFile->flush();
+ }
+
+ void StatsTracker::writeAStats() {
+   printf("Now writing Allocation run.astats file \n");
+   *astatsFile << "Total allocations: " << numAllocations << "\n";
+   *astatsFile << "Const allocations: " << numConstAllocations << "\n";
+   astatsFile->flush();
+ }
+ 
 
 void StatsTracker::updateStateStatistics(uint64_t addend) {
   for (std::set<ExecutionState*>::iterator it = executor.states.begin(),
