@@ -281,9 +281,12 @@ static int create_reg_file(const char *fname, exe_disk_file_t *dfile,
    
   // Open in RDWR just in case we have to end up using this fd.
 
-  if (__exe_env.version == 0 && mode == 0)
-    mode = 0644;
-  
+  //if (__exe_env.version == 0 && mode == 0)
+  if (mode == 0)
+    {
+      printf("*JV* Fixed perm modes for 0 \n");
+      mode = 0777;
+    }
   
   int fd = open(fname, O_CREAT | O_RDWR, mode);
   //    int fd = open(fname, O_CREAT | O_WRONLY, s->st_mode&0777);
