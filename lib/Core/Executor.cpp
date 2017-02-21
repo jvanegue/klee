@@ -3223,7 +3223,7 @@ void Executor::executeAlloc(ExecutionState &state,
   ConstantExpr *CE = dyn_cast<ConstantExpr>(size);
 
   /* Track how many allocations were symbolic and how many were of constant size */
-  if (statsTracker)
+  if (statsTracker && !(!target && reallocFrom)) /* Don't count when we just resize dynamic objects */
     statsTracker->memAllocated((CE == NULL ? false : true));
 
   if (CE)
