@@ -6,7 +6,7 @@ KLEE_OPTIONS="--simplify-sym-indices --write-cvcs --write-cov --output-module \
 --max-memory=12000 --disable-inlining --optimize --use-forked-solver \
 --use-cex-cache --libc=uclibc --posix-runtime \
 --allow-external-sym-calls --only-output-states-covering-new \
---max-sym-array-size=4096 --max-instruction-time=30. --max-time=600. \
+--max-sym-array-size=4096 --max-instruction-time=30. --max-time=6000. \
 --watchdog --max-memory-inhibit=false --max-static-fork-pct=1 \
 --max-static-solve-pct=1 --max-static-cpfork-pct=1 --switch-type=internal \
 --randomize-fork --search=random-path --search=nurs:covnew \
@@ -14,7 +14,8 @@ KLEE_OPTIONS="--simplify-sym-indices --write-cvcs --write-cov --output-module \
 
 BUSYBOX_BC="./busybox_unstripped.bc"
 APPLETS_LIST="acpid, add-shell, arping, arp, awk, base64, bzip2"
-APPLET_COMMON_OPTS="--sym-stdin 8 --sym-stdout"
+#APPLET_COMMON_OPTS="--sym-stdin 8 --sym-stdout"
+APPLET_COMMON_OPTS="--sym-stdout"
 
 if [ $# -eq 0 ]
 then
@@ -60,6 +61,10 @@ case "$APPLET" in
 
   cksum)
     APPLET_OPTS="A --sym-files 1 30"
+    ;;
+
+  cksum|dc)
+    APPLET_OPTS="--sym-stdin 30"
     ;;
 
   diff|comm)
