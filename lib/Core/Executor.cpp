@@ -3426,7 +3426,7 @@ ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki
 
 /* \brief Extract the base of destination object for Store instruction
  *
- * \description The destination opearnd for a Store instruction is often
+ * \description The destination operand for a Store instruction is often
  *              getElementPtr instruction, Alloca instruction, or a
  *              Constant. For all these cases we can extract the base
  *              address of the corresponding object. Note that during
@@ -3449,6 +3449,8 @@ bool Executor::resolveStoreDynammicObject(ExecutionState &state, KInstruction *k
   if(address == 0)
     return false;
   bool success = state.addressSpace.resolveOne(tmp, op);
+  if(!success)
+    return false;
   assert(success);
   const MemoryObject *mo = op.first;
   if(mo->isSizeDynamic)
