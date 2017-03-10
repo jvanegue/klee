@@ -1337,7 +1337,7 @@ void Executor::executeCall(ExecutionState &state,
       // va_copy should have been lowered.
       //
       // FIXME: It would be nice to check for errors in the usage of this as
-      // well.
+       // well.
     default:
       klee_error("unknown intrinsic: %s", f->getName().data());
     }
@@ -1561,6 +1561,28 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       }
 
       if (!isVoidReturn) {
+
+
+      BasicBlock *b = i->getParent();
+      Function *f = b->getParent();
+      std::string str = f->getName();
+      bool	  ret_is_symbolic = false;
+      ref<Expr> e = ConstantExpr::alloc(0, Expr::Int32);
+      static unsigned id;
+      const Array *array = arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()));
+      ref<Expr> sym_result = Expr::createTempRead(array, e->getWidth());
+      
+      if (!strcmp(str.c_str(), "strlen"))
+	{
+	  StackFrame &sf = state.stack.back();
+	  std::vector<bool> argAttrs = sf.argAttrs;
+
+	  ret_is_symbolic = argAttrs[0];
+	  llvm::outs() << " ret of strlen is symbolic = " << ret_is_symbolic << "\n";
+	  fflush(stdout);
+	}
+      
+	
         LLVM_TYPE_Q Type *t = caller->getType();
         if (t != Type::getVoidTy(i->getContext())) {
           // may need to do coercion due to bitcasts
@@ -1580,13 +1602,42 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	    bool isSExt = cs.paramHasAttr(0, llvm::Attribute::SExt);
 #endif
             if (isSExt) {
-              result = SExtExpr::create(result, to);
+	      if (ret_is_symbolic == false)
+		result = SExtExpr::create(result, to);
+	      else
+		sym_result = SExtExpr::create(sym_result, to);
+					      
             } else {
-              result = ZExtExpr::create(result, to);
+	      if (ret_is_symbolic == false)
+		result = ZExtExpr::create(result, to);
+	      else
+		sym_result = ZExtExpr::create(sym_result, to);
             }
+	    
           }
 
-          bindLocal(kcaller, state, result);
+	  if (ret_is_symbolic)
+	    {
+	      llvm::outs() << "SET return value AS symbolic \n";
+	      bindLocal(kcaller, state, sym_result);
+	      //ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, sym_result));     
+	      //state.addConstraint(eq);
+
+	      ConstantExpr* test = dyn_cast<ConstantExpr>(sym_result);
+	      if (test)
+		{
+		  llvm::outs() << "RET value could be cast to ConstantExpr \n";
+		}
+	      else
+		{
+		  llvm::outs() << "RET value could not be cast to ConstantExpr \n";
+		}
+	      fflush(stdout);
+	    }
+	  else
+	    bindLocal(kcaller, state, result);
+
+	  
         }
       } else {
         // We check that the return value has no users instead of
@@ -1804,6 +1855,57 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     for (unsigned j=0; j<numArgs; ++j)
       arguments.push_back(eval(ki, j+1, state).value);
 
+    std::vector<bool> argAttrs;
+    
+    if(f && f->getName() == "strlen")
+    {
+      llvm::outs() << "Executor::executeInstruction()::Call: calling 'strlen()'\n";
+      unsigned numFormals = f->arg_size();
+      llvm::Function::arg_iterator arg_it = f->arg_begin(); // This iterator gives us _static_ information about function arguments, e.g. its type
+      for (unsigned i=0; i<numFormals; ++i) 
+      {
+        llvm::Value *arg = arg_it;
+        llvm::Type *arg_type = arg->getType();
+        if(isa<llvm::PointerType>(arg_type))
+	{
+          llvm::outs() << "Executor::executeInstruction()::Call: argument is a pointer\n";
+          ConstantExpr *address = dyn_cast<ConstantExpr>(arguments[i]);
+	  if(!address)
+            llvm::outs() << "Executor::executeInstruction()::Call: It's a symbolic pointer!\n";
+	  else
+	  {
+            llvm::outs() << "Executor::executeInstruction()::Call: It's a constant pointer, resolving the corresponding memory object!\n";
+            ObjectPair op;
+            bool success;
+            solver->setTimeout(coreSolverTimeout);
+            success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
+            solver->setTimeout(0);
+	    assert(success && "[-] Ivan: Cannot resolve memobject for strlen arg");
+            //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+            const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
+            ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 8-bit element.
+            ConstantExpr *first_byte_is_const = dyn_cast<ConstantExpr>(first_byte);
+
+	    if(first_byte_is_const)
+	      {
+		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen string is constant!\n";
+		argAttrs.push_back(false);
+	      }
+	    else
+	      {
+		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen string is symbolic!\n";
+		argAttrs.push_back(true);
+	      }
+	    
+	  }
+        } 
+	++arg_it;
+      }
+    }
+
+    StackFrame &sf = state.stack.back();
+    sf.argAttrs = argAttrs;
+    
     if (f) {
       const FunctionType *fType = 
         dyn_cast<FunctionType>(cast<PointerType>(f->getType())->getElementType());
@@ -1847,7 +1949,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         }
       }
 
+      if(f && f->getName() == "strlen")
+	{
+	  llvm::outs() << "NOW Going to executeCall on strlen\n";
+	}
+      
       executeCall(state, ki, f, arguments);
+
+      
     } else {
       ref<Expr> v = eval(ki, 0, state).value;
 
@@ -3230,8 +3339,15 @@ void Executor::executeAlloc(ExecutionState &state,
   {
       mo = memory->allocate(CE->getZExtValue(), isLocal, false,
 			    state.prevPC->inst);
+
+      //llvm::outs() << " FOUND MALLOC WITH CONCRETE SIZE\n";
+      
   } else /* When the size is symbolic */
-  { 
+  {
+
+    llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
+
+    
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
 

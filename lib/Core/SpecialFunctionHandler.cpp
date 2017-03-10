@@ -117,6 +117,10 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("malloc", handleMalloc, true),
   add("realloc", handleRealloc, true),
 
+  // JV -- these are used a lot in busybox
+  add("xmalloc", handleMalloc, true),
+  add("xrealloc", handleRealloc, true),
+  
   // operator delete[](void*)
   add("_ZdaPv", handleDeleteArray, false),
   // operator delete(void*)
