@@ -53,6 +53,8 @@ struct StackFrame {
   std::vector<const MemoryObject *> allocas;
   Cell *locals;
 
+  std::vector<bool>	argAttrs;
+  
   /// Minimum distance to an uncovered instruction once the function
   /// returns. This is not a good place for this but is used to
   /// quickly compute the context sensitive minimum distance to an
