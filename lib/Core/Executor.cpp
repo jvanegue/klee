@@ -3324,7 +3324,7 @@ void Executor::executeAlloc(ExecutionState &state,
   ConstantExpr *CE = dyn_cast<ConstantExpr>(size);
 
   /* Track how many allocations were symbolic and how many were of constant size */
-  if (statsTracker)
+  if (statsTracker && !(!target && reallocFrom)) /* Don't count when we just resize dynamic objects */
     statsTracker->memAllocated((CE == NULL ? false : true));
 
   if (CE)
@@ -3364,13 +3364,13 @@ void Executor::executeAlloc(ExecutionState &state,
 
     /* IVANP: We could have used 'getRange()' as below but it seems slower then
      * our custom binary search <getLowerBound()>*/
-    /*
+    
        std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
        if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
          lower_bound = lowerbound_const_exp->getZExtValue();
-    */
-    lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
-    //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
+    
+    //lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
+    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
     mo = memory->allocateWithSymbolicSize(size, lower_bound, isLocal, false, state.prevPC->inst);
     mo->address = state.addressSpace.getFreeMemchunkAtGuest();
     //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->address << "; size: " << mo->size << "\n";
@@ -3542,7 +3542,7 @@ ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki
 
 /* \brief Extract the base of destination object for Store instruction
  *
- * \description The destination opearnd for a Store instruction is often
+ * \description The destination operand for a Store instruction is often
  *              getElementPtr instruction, Alloca instruction, or a
  *              Constant. For all these cases we can extract the base
  *              address of the corresponding object. Note that during
@@ -3565,6 +3565,8 @@ bool Executor::resolveStoreDynammicObject(ExecutionState &state, KInstruction *k
   if(address == 0)
     return false;
   bool success = state.addressSpace.resolveOne(tmp, op);
+  if(!success)
+    return false;
   assert(success);
   const MemoryObject *mo = op.first;
   if(mo->isSizeDynamic)
