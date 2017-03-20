@@ -3395,7 +3395,7 @@ void Executor::executeAlloc(ExecutionState &state,
         for (unsigned i=0; i<count; i++)
           os->write(i, reallocFrom->read8(i));
         state.addressSpace.unbindObject(reallocFrom->getObject());
-	if(!target) /* If we realloc dynamic object */
+	if(!target) /* If we realloc a dynamic object */
 	{
 	  mo->address = reallocFrom->getObject()->address;
 	  mo->allocSite = reallocFrom->getObject()->allocSite;
@@ -3473,9 +3473,12 @@ void Executor::resolveExact(ExecutionState &state,
 ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki)
 {
     StoreInst* SI = dyn_cast<StoreInst>(ki->inst);
-    assert(SI);
+    LoadInst* LI = dyn_cast<LoadInst>(ki->inst);
+    assert(SI || LI);
+    /* For Store instruction, the dest index is 1, for load it's 0 */
+    unsigned int dest_idx = (SI ? 1 : 0);
     //llvm::outs() << "Executor::getDestObjectAddress():Store: " << *(ki->inst) << "\n";
-    if (Instruction *gep = dyn_cast<Instruction>(SI->getOperand(1)))
+    if (Instruction *gep = dyn_cast<Instruction>(ki->inst->getOperand(dest_idx)))
     {
       if (gep->getOpcode() == Instruction::GetElementPtr)
       {
@@ -3493,7 +3496,7 @@ ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki
       else
         llvm::outs() << "                                other instr: " << *gep << "\n";
     }
-    else if (llvm::ConstantExpr *CE = dyn_cast<llvm::ConstantExpr>(SI->getOperand(1)))
+    else if (llvm::ConstantExpr *CE = dyn_cast<llvm::ConstantExpr>(ki->inst->getOperand(dest_idx)))
     {
       if (CE->getOpcode() == Instruction::GetElementPtr)
       {
@@ -3534,24 +3537,24 @@ ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki
     else
     {
         llvm::outs() << "                                      unknown gep\n";// <<  << "\n";
-        SI->getOperand(1)->print(outs());
+        ki->inst->getOperand(dest_idx)->print(outs());
         llvm::outs() << "\n";
     }
     return ConstantExpr::create(0, Context::get().getPointerWidth());
 }
 
-/* \brief Extract the base of destination object for Store instruction
+/* \brief Extract the base of destination object for Store or Load instruction
  *
- * \description The destination operand for a Store instruction is often
+ * \description The destination operand for a Store/Load instruction is often
  *              getElementPtr instruction, Alloca instruction, or a
  *              Constant. For all these cases we can extract the base
  *              address of the corresponding object. Note that during
  *              execution we record all GetElementPtr and Alloca
  *              instructions.
  * 
- * \param ki The store instruction for which we try to find the dest
+ * \param ki The Store/Load instruction for which we try to find the dest
  *           memory object.
- * \return The destination memory object for the Strore instruction, or
+ * \return The destination memory object for the Store/Load instruction, or
  *         NULL if could not find.
  * \TODO: add support for symboolic addresses
 */
@@ -3602,6 +3605,9 @@ void Executor::resizeAllDynamicObjects(ExecutionState &state)
     else
     {
       //llvm::outs() << "Executor::resizeAllDynamicObjects(): it's dynamic, resizing\n";
+      /* We set the target insturction below to NULL because:
+         our dynamic object was already mapped to the original
+         malloc (i.e. where it was first allocated) */ 
       executeAlloc(state, mo->symbolic_size, false, 0, false, os);
     }
     --op_end; // Going from the end
@@ -3618,14 +3624,18 @@ void Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op)
 {
   const MemoryObject *mo = dyno_op.first;
   const ObjectState *os = dyno_op.second;
-  executeAlloc(state, mo->symbolic_size, false, 0, false, os);
+  /* We set the target insturction below to NULL because:
+     our dynamic object was already mapped to the original
+     malloc (i.e. where it was first allocated) */ 
+  executeAlloc(state, mo->symbolic_size, false, NULL, false, os);
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
                                       bool isWrite,
                                       ref<Expr> address,
                                       ref<Expr> value /* undef if read */,
-                                      KInstruction *target /* undef if write */) {
+                                      KInstruction *target /* undef if write */,
+				      bool checkDynamicObjects) {
   Expr::Width type = (isWrite ? value->getWidth() : 
                      getWidthForLLVMType(target->inst->getType()));
   unsigned bytes = Expr::getMinBytesForWidth(type);
@@ -3689,27 +3699,30 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
       return;
     }
+    llvm::outs() << "Executor::executeMemoryOperation(): The object was somewhat resolved during " << (isWrite ? "write" : "read")  << " operation, but it is not necessarily inbound\n";
   } 
 
   /* We were not able to resovle the address. The reason might be that
    * a dynamic object should have a bigger size. */
-  if (isWrite && target) {
-    //llvm::outs() << "Executor::executeMemoryOperation(): could not resolve to a non-dynamic object for address = " << address << "";
-    //llvm::outs() << ", will check for dynamically sized now\n";
+  if (checkDynamicObjects) 
+  {
+    llvm::outs() << "Executor::executeMemoryOperation(): could not resolve to a non-dynamic object for address = " << address << "";
+    llvm::outs() << ", will check for dynamically sized now\n";
     ObjectPair dyno_op;
     bool resolved = resolveStoreDynammicObject(state, target, dyno_op);
     if(resolved)
     {
-      //llvm::outs() << "Executor::executeMemoryOperation(): found dynamic object for this address, will resize it only\n";
+      llvm::outs() << "Executor::executeMemoryOperation(): found dynamic object for this address, will resize it\n";
       resizeDynamicObject(state, dyno_op);
     }
     else
     {
-      //llvm::outs() << "Executor::executeMemoryOperation(): could not find dynamic object for this address, will resize all\n";
+      llvm::outs() << "Executor::executeMemoryOperation(): could not find dynamic object for this address, will resize all\n";
       resizeAllDynamicObjects(state);
     }
-    //llvm::outs() << "Executor::executeMemoryOperation(): Re-executing mem operation\n";
-    executeMemoryOperation(state, true, address, value, 0);
+    llvm::outs() << "Executor::executeMemoryOperation(): Re-executing mem operation\n";
+    //executeMemoryOperation(state, true, address, value, 0);
+    executeMemoryOperation(state, isWrite, address, value, target, false);
     return;
 
   }
