@@ -3470,21 +3470,21 @@ void Executor::resolveExact(ExecutionState &state,
  *       2. Improve readability
  *       3. Add alloca cache 
 */
-ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki)
+ref<Expr> Executor::getDestArgForInstruction(ExecutionState &state, KInstruction *ki)
 {
     StoreInst* SI = dyn_cast<StoreInst>(ki->inst);
     LoadInst* LI = dyn_cast<LoadInst>(ki->inst);
     assert(SI || LI);
     /* For Store instruction, the dest index is 1, for load it's 0 */
     unsigned int dest_idx = (SI ? 1 : 0);
-    //llvm::outs() << "Executor::getDestObjectAddress():Store: " << *(ki->inst) << "\n";
+    //llvm::outs() << "Executor::getDestArgForInstruction():Store: " << *(ki->inst) << "\n";
     if (Instruction *gep = dyn_cast<Instruction>(ki->inst->getOperand(dest_idx)))
     {
       if (gep->getOpcode() == Instruction::GetElementPtr)
       {
         if(state.getElmntPtrBases.count(gep))
         {
-          //llvm::outs() << "Executor::getDestObjectAddress(): found cached getElementPtr, base = "
+          //llvm::outs() << "Executor::getDestArgForInstruction(): found cached getElementPtr, base = "
           //             <<  state.getElmntPtrBases[gep] << "\n";
           return state.getElmntPtrBases[gep];
         }
@@ -3558,9 +3558,9 @@ ref<Expr> Executor::getDestObjectAddress(ExecutionState &state, KInstruction *ki
  *         NULL if could not find.
  * \TODO: add support for symboolic addresses
 */
-bool Executor::resolveStoreDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op)
+bool Executor::resolveDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op)
 {
-  ref<Expr> addressExpr = getDestObjectAddress(state, ki);
+  ref<Expr> addressExpr = getDestArgForInstruction(state, ki);
   ConstantExpr *tmp = dyn_cast<ConstantExpr>(addressExpr);
   if(!tmp)
     return false; /* We don't support symbolic addresses here yet */
@@ -3709,7 +3709,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     llvm::outs() << "Executor::executeMemoryOperation(): could not resolve to a non-dynamic object for address = " << address << "";
     llvm::outs() << ", will check for dynamically sized now\n";
     ObjectPair dyno_op;
-    bool resolved = resolveStoreDynammicObject(state, target, dyno_op);
+    bool resolved = resolveDynammicObject(state, target, dyno_op);
     if(resolved)
     {
       llvm::outs() << "Executor::executeMemoryOperation(): found dynamic object for this address, will resize it\n";
