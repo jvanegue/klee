@@ -174,21 +174,40 @@ public:
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset) const {
-    if (size==0) {
-      return EqExpr::create(offset, 
-                            ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-    } else {
-      return UltExpr::create(offset, getSizeExpr());
+    if(!isSizeDynamic)
+    {
+      if (size==0) {
+        return EqExpr::create(offset, 
+                              ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+      } else {
+        return UltExpr::create(offset, getSizeExpr());
+      }
+    } else
+    {
+      return UltExpr::create(offset, symbolic_size);
+      //return UleExpr::create(offset, 
+      //                  AddExpr::create(symbolic_size,
+      //		                ConstantExpr::alloc(1,Context::get().getPointerWidth())));
     }
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
-    if (bytes<=size) {
-      return UltExpr::create(offset, 
-                             ConstantExpr::alloc(size - bytes + 1, 
-                                                 Context::get().getPointerWidth()));
-    } else {
-      return ConstantExpr::alloc(0, Expr::Bool);
+    if(!isSizeDynamic)
+    {
+      if (bytes<=size) {
+        return UltExpr::create(offset, 
+                               ConstantExpr::alloc(size - bytes + 1, 
+                                                   Context::get().getPointerWidth()));
+      } else {
+        return ConstantExpr::alloc(0, Expr::Bool);
+      }
+    } else
+    {
+        return UltExpr::create(offset, 
+	                       SubExpr::create(symbolic_size,
+                                ConstantExpr::alloc(bytes - 1, 
+                                                   Context::get().getPointerWidth())));
+
     }
   }
 

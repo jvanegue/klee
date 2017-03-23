@@ -319,6 +319,11 @@ namespace {
   MaxMemoryInhibit("max-memory-inhibit",
             cl::desc("Inhibit forking at memory cap (vs. random terminate) (default=on)"),
             cl::init(true));
+
+  cl::opt<bool>
+  SymbolicStrlen("symbolic-strlen",
+            cl::desc("Inhibit forking at memory cap (vs. random terminate) (default=on)"),
+            cl::init(true));
 }
 
 
@@ -1569,7 +1574,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  StackFrame &sf = state.stack.back();
 	  std::vector<bool> argAttrs = sf.argAttrs;
 
-	  ret_is_symbolic = argAttrs[0];
+	  ret_is_symbolic = (argAttrs[0] && SymbolicStrlen);
 	  llvm::outs() << " ret of strlen is symbolic = " << ret_is_symbolic << "\n";
 	  fflush(stdout);
 	}
@@ -3364,10 +3369,11 @@ void Executor::executeAlloc(ExecutionState &state,
 
     /* IVANP: We could have used 'getRange()' as below but it seems slower then
      * our custom binary search <getLowerBound()>*/
-    
-       std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
-       if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
-         lower_bound = lowerbound_const_exp->getZExtValue();
+    solver->setTimeout(coreSolverTimeout);
+    std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
+    if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
+      lower_bound = lowerbound_const_exp->getZExtValue();
+    solver->setTimeout(0);
     
     //lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
     llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
@@ -3491,18 +3497,20 @@ ref<Expr> Executor::getDestArgForInstruction(ExecutionState &state, KInstruction
       } 
       if (gep->getOpcode() == Instruction::Alloca)
       {
-        llvm::outs() << "                                alloc instr: " << *gep << "\n";
+        //llvm::outs() << "  Executor::getDestArgForInstruction(): cache for allocas not implemented yet: alloc instr: " << *gep << "\n";
       }
       else
-        llvm::outs() << "                                other instr: " << *gep << "\n";
+      {
+        //llvm::outs() << "                                other instr: " << *gep << "\n";
+      }
     }
     else if (llvm::ConstantExpr *CE = dyn_cast<llvm::ConstantExpr>(ki->inst->getOperand(dest_idx)))
     {
       if (CE->getOpcode() == Instruction::GetElementPtr)
       {
         assert(CE->isGEPWithNoNotionalOverIndexing());
-        llvm::outs() << "                                      constant gep = \n";// <<  << "\n";
-        CE->print(outs());
+        //llvm::outs() << "                                      constant gep = \n";// <<  << "\n";
+        //CE->print(outs());
         if (llvm::ConstantInt *CE1 = dyn_cast<llvm::ConstantInt>(CE->getOperand(0)))
         {
           llvm::outs() << "\n                                      base value = " << CE1->getZExtValue() << "\n";
@@ -3524,21 +3532,21 @@ ref<Expr> Executor::getDestArgForInstruction(ExecutionState &state, KInstruction
           return globalAddresses[GV];
         }
         else
-          assert(0 && "The base for constant GEP is not a constant or global variable; seems that IvanP doesn's really know llvm...");
+          assert(0 && "The base for constant GEP is not a constant or global variable; seems that Ivan doesnt's really know llvm...");
         llvm::outs() << "\n";
       }
       //else if (llvm::Constant *CE = dyn_cast<llvm::Constant>(SI->getOperand(1)))
       else if (llvm::ConstantInt *CE1 = dyn_cast<llvm::ConstantInt>(CE))
       {
-          llvm::outs() << "                                      constant gep\n";// <<  << "\n";
+          //llvm::outs() << "                                      constant gep\n";// <<  << "\n";
           return ConstantExpr::create(CE1->getZExtValue(), Context::get().getPointerWidth());
       }
     }
     else
     {
-        llvm::outs() << "                                      unknown gep\n";// <<  << "\n";
-        ki->inst->getOperand(dest_idx)->print(outs());
-        llvm::outs() << "\n";
+        //llvm::outs() << "                                      unknown gep\n";// <<  << "\n";
+        //ki->inst->getOperand(dest_idx)->print(outs());
+        //llvm::outs() << "\n";
     }
     return ConstantExpr::create(0, Context::get().getPointerWidth());
 }
@@ -3558,8 +3566,11 @@ ref<Expr> Executor::getDestArgForInstruction(ExecutionState &state, KInstruction
  *         NULL if could not find.
  * \TODO: add support for symboolic addresses
 */
-bool Executor::resolveDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op)
+//bool Executor::resolveDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op)
+bool Executor::resolveFromInstruction(ExecutionState &state, KInstruction *ki, ObjectPair &op)
 {
+  if(!ki)
+    return false;
   ref<Expr> addressExpr = getDestArgForInstruction(state, ki);
   ConstantExpr *tmp = dyn_cast<ConstantExpr>(addressExpr);
   if(!tmp)
@@ -3570,11 +3581,11 @@ bool Executor::resolveDynammicObject(ExecutionState &state, KInstruction *ki, Ob
   bool success = state.addressSpace.resolveOne(tmp, op);
   if(!success)
     return false;
-  assert(success);
-  const MemoryObject *mo = op.first;
-  if(mo->isSizeDynamic)
-    return true;
-  return false;
+  //const MemoryObject *mo = op.first;
+  return true;
+  //if(mo->isSizeDynamic)
+  //  return true;
+  //return false;
 }
 
 /* \brief Resize all objects with dynamic size according the state's
@@ -3620,14 +3631,35 @@ void Executor::resizeAllDynamicObjects(ExecutionState &state)
  * \param state Consider memory object from this state
  * \return void
 */
-void Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op)
+ObjectState* Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &old_op)
 {
-  const MemoryObject *mo = dyno_op.first;
-  const ObjectState *os = dyno_op.second;
-  /* We set the target insturction below to NULL because:
-     our dynamic object was already mapped to the original
-     malloc (i.e. where it was first allocated) */ 
-  executeAlloc(state, mo->symbolic_size, false, NULL, false, os);
+  const MemoryObject *old_mo = old_op.first;
+  const ObjectState *old_os = old_op.second;
+  bool isLocal = false;
+
+  /* Find the lower bound for the object's symolic size */
+  uint64_t lower_bound = INT_MAX;
+  solver->setTimeout(coreSolverTimeout);
+  std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, old_mo->symbolic_size);
+  if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
+    lower_bound = lowerbound_const_exp->getZExtValue();
+  solver->setTimeout(0);
+  
+  llvm::outs() << "Executor::resizeDynamicObject(): Received a resize request. The minimum size is " << lower_bound << "\n";
+  MemoryObject *new_mo = memory->allocateWithSymbolicSize(old_mo->symbolic_size, lower_bound, isLocal, false, state.prevPC->inst);
+  assert(new_mo && "Resizing of dynmic object failed (due to failed malloc)");
+
+  ObjectState *new_os = bindObjectInState(state, new_mo, isLocal);
+  new_os->initializeToZero();
+  //new_os->initializeToRandom();
+  unsigned count = std::min(old_os->size, new_os->size);
+  for (unsigned i=0; i<count; i++)
+    new_os->write(i, old_os->read8(i));
+  new_mo->address = old_mo->address;
+  new_mo->allocSite = old_mo->allocSite;
+
+  state.addressSpace.unbindObject(old_mo);
+  return new_os;
 }
 
 void Executor::executeMemoryOperation(ExecutionState &state,
@@ -3647,141 +3679,88 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       value = state.constraints.simplifyExpr(value);
   }
 
-  // fast path: single in-bounds resolution
   ObjectPair op;
+  bool resolved;
   bool success;
-  solver->setTimeout(coreSolverTimeout);
-  if (!state.addressSpace.resolveOne(state, solver, address, op, success)) {
-    address = toConstant(state, address, "resolveOne failure");
-    success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
-  }
-  solver->setTimeout(0);
-
-  if (success) {
-    const MemoryObject *mo = op.first;
-
-    if (MaxSymArraySize && mo->size>=MaxSymArraySize) {
-      address = toConstant(state, address, "max-sym-array-size");
-    }
-    
-    ref<Expr> offset = mo->getOffsetExpr(address);
-
-    bool inBounds;
-    solver->setTimeout(coreSolverTimeout);
-    bool success = solver->mustBeTrue(state, 
-                                      mo->getBoundsCheckOffset(offset, bytes),
-                                      inBounds);
-    solver->setTimeout(0);
-    if (!success) {
-      state.pc = state.prevPC;
-      terminateStateEarly(state, "Query timed out (bounds check).");
-      return;
-    }
-
-    if (inBounds) {
-      const ObjectState *os = op.second;
-      if (isWrite) {
-        if (os->readOnly) {
-          terminateStateOnError(state, "memory error: object read only",
-                                ReadOnly);
-        } else {
-          ObjectState *wos = state.addressSpace.getWriteable(mo, os);
-          wos->write(offset, value);
-        }          
-      } else {
-        ref<Expr> result = os->read(offset, type);
-        
-        if (interpreterOpts.MakeConcreteSymbolic)
-          result = replaceReadWithSymbolic(state, result);
-        
-        bindLocal(target, state, result);
-      }
-
-      return;
-    }
-    llvm::outs() << "Executor::executeMemoryOperation(): The object was somewhat resolved during " << (isWrite ? "write" : "read")  << " operation, but it is not necessarily inbound\n";
-  } 
-
-  /* We were not able to resovle the address. The reason might be that
-   * a dynamic object should have a bigger size. */
-  if (checkDynamicObjects) 
+  resolved = resolveFromInstruction(state, target, op);
+  //if(resolved)
+  //  llvm::outs() << "--> resolved from cache\n";
+  if(!resolved)
   {
-    llvm::outs() << "Executor::executeMemoryOperation(): could not resolve to a non-dynamic object for address = " << address << "";
-    llvm::outs() << ", will check for dynamically sized now\n";
-    ObjectPair dyno_op;
-    bool resolved = resolveDynammicObject(state, target, dyno_op);
-    if(resolved)
+    //llvm::outs() << "Executor::executeMemoryOperation(): Could not resolve object from case, wil back off to resolve()\n";
+    ResolutionList rl;  
+    solver->setTimeout(coreSolverTimeout);
+    //bool incomplete = state.addressSpace.resolve(state, solver, address, rl, 0, coreSolverTimeout);
+    //state.addressSpace.resolve(state, solver, address, rl, 0, coreSolverTimeout);
+    state.addressSpace.resolveOne(state, solver, address, op, success);
+    solver->setTimeout(0);
+    //if(rl.size() != 1)
+    if(!success)
     {
-      llvm::outs() << "Executor::executeMemoryOperation(): found dynamic object for this address, will resize it\n";
-      resizeDynamicObject(state, dyno_op);
+      //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = " << rl.size() << ". It's a memory error\n";
+      llvm::outs() << "Executor::executeMemoryOperation(): Could not resolve a pointer (at address " <<
+                      address << "). It's a memory error\n";
+      terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
+                            NULL, getAddressInfo(state, address));
+      return;
     }
-    else
-    {
-      llvm::outs() << "Executor::executeMemoryOperation(): could not find dynamic object for this address, will resize all\n";
-      resizeAllDynamicObjects(state);
-    }
-    llvm::outs() << "Executor::executeMemoryOperation(): Re-executing mem operation\n";
-    //executeMemoryOperation(state, true, address, value, 0);
-    executeMemoryOperation(state, isWrite, address, value, target, false);
-    return;
 
+    //op = rl[0];
   }
 
-  //llvm::outs() << "Executor::executeMemoryOperation(): Resolve adress error path \n";
-  // we are on an error path (no resolution, multiple resolution, one
-  // resolution with out of bounds)
- 
-  ResolutionList rl;  
+  const MemoryObject *mo = op.first;
+
+  if (MaxSymArraySize && mo->size>=MaxSymArraySize) {
+    address = toConstant(state, address, "max-sym-array-size");
+  }
+  
+  ref<Expr> offset = mo->getOffsetExpr(address);
+
+  bool inBounds;
   solver->setTimeout(coreSolverTimeout);
-  bool incomplete = state.addressSpace.resolve(state, solver, address, rl,
-                                               0, coreSolverTimeout);
+  success = solver->mustBeTrue(state, 
+                                    mo->getBoundsCheckOffset(offset, bytes),
+                                    inBounds);
   solver->setTimeout(0);
-  
-  // XXX there is some query wasteage here. who cares?
-  ExecutionState *unbound = &state;
-  //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = " << rl.size() << " \n";
-  
-  for (ResolutionList::iterator i = rl.begin(), ie = rl.end(); i != ie; ++i) {
-    const MemoryObject *mo = i->first;
-    const ObjectState *os = i->second;
+  if (!success) {
+    state.pc = state.prevPC;
+    terminateStateEarly(state, "Query timed out (bounds check).");
+    return;
+  }
 
-    //std::cout << "[JV] FOUND MEMORY OBJECT " << mo->name << " in RESOLUTION LIST" << std::endl;
-    
-    ref<Expr> inBounds = mo->getBoundsCheckPointer(address, bytes);
-    
-    StatePair branches = fork(*unbound, inBounds, true);
-    ExecutionState *bound = branches.first;
-
-    // bound can be 0 on failure or overlapped 
-    if (bound) {
-      if (isWrite) {
-        if (os->readOnly) {
-          terminateStateOnError(*bound, "memory error: object read only",
-                                ReadOnly);
-        } else {
-          ObjectState *wos = bound->addressSpace.getWriteable(mo, os);
-          wos->write(mo->getOffsetExpr(address), value);
-        }
+  if (inBounds) {
+    const ObjectState *os;
+    if(mo->isSizeDynamic)
+    {
+      os = resizeDynamicObject(state, op);
+      mo = os->getObject();
+    } else
+      os = op.second;
+    //const ObjectState *os = op.second;
+    if (isWrite) {
+      if (os->readOnly) {
+        terminateStateOnError(state, "memory error: object read only",
+                              ReadOnly);
       } else {
-        ref<Expr> result = os->read(mo->getOffsetExpr(address), type);
-        bindLocal(target, *bound, result);
-      }
+        ObjectState *wos = state.addressSpace.getWriteable(mo, os);
+        wos->write(offset, value);
+      }          
+    } else {
+      ref<Expr> result = os->read(offset, type);
+      
+      if (interpreterOpts.MakeConcreteSymbolic)
+        result = replaceReadWithSymbolic(state, result);
+      
+      bindLocal(target, state, result);
     }
 
-    unbound = branches.second;
-    if (!unbound)
-      break;
+    return;
   }
-  
-  // XXX should we distinguish out of bounds and overlapped cases?
-  if (unbound) {
-    if (incomplete) {
-      terminateStateEarly(*unbound, "Query timed out (resolve).");
-    } else {
-      terminateStateOnError(*unbound, "memory error: out of bound pointer", Ptr,
-                            NULL, getAddressInfo(*unbound, address));
-    }
-  }
+
+  llvm::outs() << "Executor::executeMemoryOperation(): Pointer was resolved to an objects (with " << (mo->isSizeDynamic ? "dynamic" : "static") << " size), but can be out of bound. It's a memory error\n";
+  terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
+                        NULL, getAddressInfo(state, address));
+  return;
 }
 
 void Executor::executeMakeSymbolic(ExecutionState &state, 

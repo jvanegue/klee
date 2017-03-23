@@ -61,6 +61,11 @@ namespace klee {
     bool resolveOne(const ref<ConstantExpr> &address, 
                     ObjectPair &result);
 
+    bool resolveOne(ExecutionState &state,
+                                  TimingSolver *solver,
+                                  const ref<ConstantExpr> &addr, 
+                                  ObjectPair &result);
+
     /// Resolve address to an ObjectPair in result.
     ///
     /// \param state The state this address space is part of.
