@@ -261,9 +261,9 @@ private:
                     const std::string &name);
 
   uint64_t getLowerBound(ExecutionState &state, ref<Expr> size);
-  bool resolveDynammicObject(ExecutionState &state, KInstruction *ki, ObjectPair &op);
+  bool resolveFromInstruction(ExecutionState &state, KInstruction *ki, ObjectPair &op);
   ref<Expr> getDestArgForInstruction(ExecutionState &state, KInstruction *ki);
-  void resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op);
+  ObjectState* resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op);
   void resizeAllDynamicObjects(ExecutionState &state);
 
   /// Allocate and bind a new object in a particular state. NOTE: This

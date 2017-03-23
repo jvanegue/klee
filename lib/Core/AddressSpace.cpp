@@ -51,6 +51,7 @@ ObjectState *AddressSpace::getWriteable(const MemoryObject *mo,
 
 /// 
 
+
 bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr, 
                               ObjectPair &result) {
   uint64_t address = addr->getZExtValue();
@@ -72,11 +73,44 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
 
 bool AddressSpace::resolveOne(ExecutionState &state,
                               TimingSolver *solver,
+                              const ref<ConstantExpr> &addr, 
+                              ObjectPair &result) {
+  uint64_t address = addr->getZExtValue();
+  MemoryObject hack(address);
+
+  if (const MemoryMap::value_type *res = objects.lookup_previous(&hack)) {
+    const MemoryObject *mo = res->first;
+    // Check if the provided address is between start and end of the object
+    // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
+
+    if(!mo->isSizeDynamic)
+      if ((mo->size==0 && address==mo->address) ||
+          (address - mo->address < mo->size)) {
+        result = *res;
+        return true;
+      }
+    if(mo->isSizeDynamic)
+    {
+      llvm::outs() << "--> trying to resolve to a dynamic object\n";
+      bool mayBeTrue;
+      if (!solver->mayBeTrue(state, mo->getBoundsCheckPointer(addr), mayBeTrue))
+        return false;
+      if (mayBeTrue) {
+        result = *res;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool AddressSpace::resolveOne(ExecutionState &state,
+                              TimingSolver *solver,
                               ref<Expr> address,
                               ObjectPair &result,
                               bool &success) {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(address)) {
-    success = resolveOne(CE, result);
+    success = resolveOne(state, solver, CE, result);
     return true;
   } else {
     TimerStatIncrementer timer(stats::resolveTime);
@@ -92,10 +126,20 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     
     if (res) {
       const MemoryObject *mo = res->first;
-      if (example - mo->address < mo->size) {
-        result = *res;
-        success = true;
-        return true;
+      if(!mo->isSizeDynamic)
+        if (example - mo->address < mo->size) {
+          result = *res;
+          success = true;
+          return true;
+        }
+      if(mo->isSizeDynamic)
+      {
+        bool mayBeTrue;
+        if (solver->mayBeTrue(state, mo->getBoundsCheckPointer(address), mayBeTrue) && mayBeTrue)
+        {
+          result = *res;
+          return true;
+        }
       }
     }
 
