@@ -3,7 +3,7 @@ OBJ = $(SRC:.c=.bc)
 CLG = clang
 CFLAGS = -I../../include
 
-all: clean comp
+all: clean comp run
 
 comp:
 	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC)

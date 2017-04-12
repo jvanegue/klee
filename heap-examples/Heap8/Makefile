@@ -5,7 +5,7 @@ CLG = clang-3.4
 all: clean comp run
 
 comp:
-	$(CLG) -emit-llvm -c -g $(SRC)
+	$(CLG) -emit-llvm -c -g $(SRC) -I../../include
 
 run:
 	klee $(OBJ)
