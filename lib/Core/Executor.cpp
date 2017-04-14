@@ -3321,7 +3321,8 @@ void Executor::executeAlloc(ExecutionState &state,
                             KInstruction *target,
                             bool zeroMemory,
                             const ObjectState *reallocFrom) {
-  
+
+  // JV: This looks incorrect - it will force conversion to a ConstantExpr, we want to do this after the cast below.
   size = toUnique(state, size);
   
   /* When the size is constant */
@@ -3329,8 +3330,14 @@ void Executor::executeAlloc(ExecutionState &state,
   ConstantExpr *CE = dyn_cast<ConstantExpr>(size);
 
   /* Track how many allocations were symbolic and how many were of constant size */
-  if (statsTracker && !(!target && reallocFrom)) /* Don't count when we just resize dynamic objects */
-    statsTracker->memAllocated((CE == NULL ? false : true));
+
+  /* This counts the numbe of calls with symbolic size rather than the number of locations, so we enable this
+     anyway. Ideally we would want to have a different counter for symbolic reallocation.
+     
+     //if (statsTracker && !(!target && reallocFrom)) // Don't count when we just resize dynamic objects  
+  */
+  
+  statsTracker->memAllocated((CE == NULL ? false : true));
 
   if (CE)
   {
@@ -3342,7 +3349,7 @@ void Executor::executeAlloc(ExecutionState &state,
   } else /* When the size is symbolic */
   {
 
-    llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
+    //llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
 
     
     uint64_t lower_bound = INT_MAX;
@@ -3362,8 +3369,11 @@ void Executor::executeAlloc(ExecutionState &state,
     }
 
     //llvm::outs() << "Executor::executeAlloc(): hugeSize.first = " << hugeSize.first << "\n";
-    if(!hugeSize.first) // Symbolic size can only be huge
-      return;
+    if (!hugeSize.first) // Symbolic size can only be huge
+      {
+	klee_warning("Found klee state where symbolic size can only be huge, suspicious (should never happen)\n");
+	return;
+      }
     assert(hugeSize.first);
     assert(hugeSize.first == &state);
 
@@ -3594,6 +3604,9 @@ bool Executor::resolveFromInstruction(ExecutionState &state, KInstruction *ki, O
  * \param state Consider address space of this state
  * \return void
 */
+
+
+// JV: THIS IS NOT USED ANMORE IN CURRENT -HEAD (4/14/17) 
 void Executor::resizeAllDynamicObjects(ExecutionState &state)
 {
   //llvm::outs() << "Executor::resizeAllDynamicObjects(): inside\n";
