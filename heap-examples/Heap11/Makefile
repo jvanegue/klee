@@ -6,10 +6,11 @@ all: clean comp run
 
 comp:
 	$(CLG) -emit-llvm --target="x86_64-pc-linux-gnu" -c -g $(SRC)
-	llvm-dis-3.4 $(OBJ)
+	#llvm-dis-3.4 $(OBJ)
 
 run:
-	klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 10
+	klee $(OBJ)
+	#klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 10
 	#klee --libc=uclibc --posix-runtime $(OBJ) 255
 	#klee --libc=uclibc --posix-runtime $(OBJ) 0
 	#klee --libc=uclibc --posix-runtime $(OBJ) 1
