@@ -3584,7 +3584,10 @@ bool Executor::resolveFromInstruction(ExecutionState &state, KInstruction *ki, O
   ref<Expr> addressExpr = getDestArgForInstruction(state, ki);
   ConstantExpr *tmp = dyn_cast<ConstantExpr>(addressExpr);
   if(!tmp)
-    return false; /* We don't support symbolic addresses here yet */
+    {
+      klee_warning("resolveFromInstruction: Symbolic address case (unsupported) \n");
+      return false; /* We don't support symbolic addresses here yet */
+    }
   uint64_t address = tmp->getZExtValue();
   if(address == 0)
     return false;
@@ -3700,19 +3703,22 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   //  llvm::outs() << "--> resolved from cache\n";
   if(!resolved)
   {
-    //llvm::outs() << "Executor::executeMemoryOperation(): Could not resolve object from case, wil back off to resolve()\n";
+    // llvm::outs() << "Executor::executeMemoryOperation(): Could not resolve
+    // object from case, wil back off to resolve()\n";
     ResolutionList rl;  
     solver->setTimeout(coreSolverTimeout);
-    //bool incomplete = state.addressSpace.resolve(state, solver, address, rl, 0, coreSolverTimeout);
+    //bool incomplete = state.addressSpace.resolve(state, solver, address,
+    //                                             rl, 0, coreSolverTimeout);
     //state.addressSpace.resolve(state, solver, address, rl, 0, coreSolverTimeout);
     state.addressSpace.resolveOne(state, solver, address, op, success);
     solver->setTimeout(0);
     //if(rl.size() != 1)
     if(!success)
     {
-      //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = " << rl.size() << ". It's a memory error\n";
-      llvm::outs() << "Executor::executeMemoryOperation(): Could not resolve a pointer (at address " <<
-                      address << "). It's a memory error\n";
+      //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = "
+      //             << rl.size() << ". It's a memory error\n";
+      llvm::outs() << "HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer "
+		   << "(at address " << address << "). It's a memory error\n";
       terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
                             NULL, getAddressInfo(state, address));
       return;
@@ -3732,8 +3738,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   bool inBounds;
   solver->setTimeout(coreSolverTimeout);
   success = solver->mustBeTrue(state, 
-                                    mo->getBoundsCheckOffset(offset, bytes),
-                                    inBounds);
+			       mo->getBoundsCheckOffset(offset, bytes),
+			       inBounds);
   solver->setTimeout(0);
   if (!success) {
     state.pc = state.prevPC;
@@ -3745,6 +3751,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     const ObjectState *os;
     if(mo->isSizeDynamic)
     {
+      // It seems like we dont destroy the previous object here
       os = resizeDynamicObject(state, op);
       mo = os->getObject();
     } else
@@ -3760,7 +3767,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
       }          
     } else {
       ref<Expr> result = os->read(offset, type);
-      
+
+      // JV: why do we do this?
       if (interpreterOpts.MakeConcreteSymbolic)
         result = replaceReadWithSymbolic(state, result);
       
