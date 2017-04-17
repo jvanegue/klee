@@ -403,7 +403,7 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
   uint64_t prev_size = 0;
   uint64_t cur_size = 0;
 
-  uint64_t guest_address;
+  uint64_t guest_address = 0;
   bool first = false;
 
   /* If we don't have any objects yet, reserve space at the
@@ -444,6 +444,12 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
     assert((guest_address > MEMLOW) && "too many objects with dynamic size");
   }
 
+  if (guest_address == 0)
+    {
+      llvm::outs() << "Selected guest address is 0 - this should never happen \n";
+      return (0);
+    }
+  
   //llvm::outs() << " Found apporpriate memory chunk:  ++ [" << guest_address << " - " << guest_address+CHUNKSIZE << "]\n";
   return guest_address;
 }
