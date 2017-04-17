@@ -192,22 +192,29 @@ public:
   }
 
   ref<Expr> getBoundsCheckOffset(ref<Expr> offset, unsigned bytes) const {
+    unsigned  int width = Context::get().getPointerWidth();
     if(!isSizeDynamic)
     {
       if (bytes<=size) {
-        return UltExpr::create(offset, 
-                               ConstantExpr::alloc(size - bytes + 1, 
-                                                   Context::get().getPointerWidth()));
-      } else {
+	ref<Expr> add = AddExpr::create(offset, ConstantExpr::alloc(bytes, width));
+	
+	// JV: should not that be Signed lower than? (e.g. if offset is negative)
+	// Or: add another constraint offset >= 0 since this should never happen
+	
+	ref<Expr> ult = UltExpr::create(add, ConstantExpr::alloc(size + 1, width));
+	return (ult);
+      }
+
+      // This is never true, will always trigger OOB warning
+      else {
         return ConstantExpr::alloc(0, Expr::Bool);
       }
-    } else
+    }
+    else
     {
-        return UltExpr::create(offset, 
-	                       SubExpr::create(symbolic_size,
-                                ConstantExpr::alloc(bytes - 1, 
-                                                   Context::get().getPointerWidth())));
-
+      ref<Expr> add = AddExpr::create(offset, ConstantExpr::alloc(bytes - 1, width));
+      ref<Expr> ult = UltExpr::create(add, symbolic_size);
+      return (ult);
     }
   }
 
