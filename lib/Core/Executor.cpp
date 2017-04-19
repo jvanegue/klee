@@ -1577,13 +1577,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       const Array *array = arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()));
       ref<Expr> sym_result = Expr::createTempRead(array, e->getWidth());
       
-      if (!strcmp(str.c_str(), "strlen"))
+      if (!strcmp(str.c_str(), "strlen") || !strcmp(str.c_str(), "atoi"))
 	{
 	  StackFrame &sf = state.stack.back();
 	  std::vector<bool> argAttrs = sf.argAttrs;
 
 	  ret_is_symbolic = (argAttrs[0] && SymbolicStrlen);
-	  llvm::outs() << " ret of strlen is symbolic = " << ret_is_symbolic << "\n";
+	  llvm::outs() << " ret of strlen/atoi is symbolic = " << ret_is_symbolic << "\n";
 	  fflush(stdout);
 	}
       
@@ -1862,9 +1862,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     std::vector<bool> argAttrs;
     
-    if(f && f->getName() == "strlen")
+    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
     {
-      llvm::outs() << "Executor::executeInstruction()::Call: calling 'strlen()'\n";
+      llvm::outs() << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
       unsigned numFormals = f->arg_size();
       llvm::Function::arg_iterator arg_it = f->arg_begin(); // This iterator gives us _static_ information about function arguments, e.g. its type
       for (unsigned i=0; i<numFormals; ++i) 
@@ -1875,8 +1875,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	{
           llvm::outs() << "Executor::executeInstruction()::Call: argument is a pointer\n";
           ConstantExpr *address = dyn_cast<ConstantExpr>(arguments[i]);
-	  if(!address)
-            llvm::outs() << "Executor::executeInstruction()::Call: It's a symbolic pointer!\n";
+	  if (!address)
+	    {
+	      llvm::outs() << "Executor::executeInstruction()::Call: It's a symbolic pointer!\n";
+	    }
 	  else
 	  {
             llvm::outs() << "Executor::executeInstruction()::Call: It's a constant pointer, resolving the corresponding memory object!\n";
@@ -1885,20 +1887,20 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             solver->setTimeout(coreSolverTimeout);
             success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
             solver->setTimeout(0);
-	    assert(success && "[-] Ivan: Cannot resolve memobject for strlen arg");
+	    assert(success && "[-] Ivan: Cannot resolve memobject for strlen/atoi arg");
             //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
             const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
             ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 8-bit element.
             ConstantExpr *first_byte_is_const = dyn_cast<ConstantExpr>(first_byte);
 
-	    if(first_byte_is_const)
+	    if (first_byte_is_const)
 	      {
-		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen string is constant!\n";
+		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
 		argAttrs.push_back(false);
 	      }
 	    else
 	      {
-		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen string is symbolic!\n";
+		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
 		argAttrs.push_back(true);
 	      }
 	    
@@ -1954,9 +1956,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         }
       }
 
-      if(f && f->getName() == "strlen")
+      if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
 	{
-	  llvm::outs() << "NOW Going to executeCall on strlen\n";
+	  llvm::outs() << "Now Going to executeCall on strlen/atoi\n";
 	}
       
       executeCall(state, ki, f, arguments);

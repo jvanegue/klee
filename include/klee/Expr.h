@@ -260,7 +260,7 @@ public:
   /// returns the smallest number of bytes in which the given width fits
   static inline unsigned getMinBytesForWidth(Width w) {
     unsigned min = (w + 7) / 8;
-    std::cout << "[jv] Min bytes for width " << w << + " = " << min << std::endl;
+    //std::cout << "[jv] Min bytes for width " << w << + " = " << min << std::endl;
     return (min);
   }
 
