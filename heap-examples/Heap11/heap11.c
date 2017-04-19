@@ -9,11 +9,11 @@ int main(int argc, char *argv[])
   int len = strlen(argv[1]);
   
   char *a = (char *)malloc(len);
-
-  a[0] = 0x00;
+  if (a == NULL)
+    return (-1);
   
-  //int idx = atoi((const char *) argv[1]);
-  //a[idx] = 'x';
+  int idx = atoi((const char *) argv[1]);
+  a[idx] = 'x';
 
   
   return 0;
