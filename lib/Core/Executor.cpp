@@ -3768,7 +3768,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     } else {
       ref<Expr> result = os->read(offset, type);
 
-      // JV: why do we do this?
+      // JV: why is KLEE providing this option?
       if (interpreterOpts.MakeConcreteSymbolic)
         result = replaceReadWithSymbolic(state, result);
       
@@ -3778,7 +3778,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     return;
   }
 
-  llvm::outs() << "Executor::executeMemoryOperation(): Pointer was resolved to an objects (with " << (mo->isSizeDynamic ? "dynamic" : "static") << " size), but can be out of bound. It's a memory error\n";
+  llvm::outs() << "Executor::executeMemoryOperation(): Resolved pointer of " << (mo->isSizeDynamic ? "DYNAMIC" : "STATIC") << " size WIH OOB ACCESS\n";
   terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
                         NULL, getAddressInfo(state, address));
   return;
