@@ -113,7 +113,6 @@ public:
       isLocal(_isLocal),
       isGlobal(_isGlobal),
       isFixed(_isFixed),
-      fake_object(false),
       isUserSpecified(false),
       parent(_parent), 
       allocSite(_allocSite) {
