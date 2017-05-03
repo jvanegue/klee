@@ -3673,7 +3673,7 @@ ObjectState* Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &ol
   
   llvm::outs() << "Executor::resizeDynamicObject(): Received a resize request. The minimum size is " << lower_bound << "\n";
   MemoryObject *new_mo = memory->allocateWithSymbolicSize(old_mo->symbolic_size, lower_bound, isLocal, false, state.prevPC->inst);
-  assert(new_mo && "Resizing of dynmic object failed (due to failed malloc)");
+  assert(new_mo && "Resizing of dynamic object failed (due to failed malloc)");
 
   ObjectState *new_os = bindObjectInState(state, new_mo, isLocal);
   new_os->initializeToZero();
