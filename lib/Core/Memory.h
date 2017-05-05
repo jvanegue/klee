@@ -48,8 +48,6 @@ public:
   unsigned size;
 
   // When address and size are symbolic
-  ref<Expr> constraint_addr;  
-  ref<Expr>  constraint_size;
   ref<Expr>  symbolic_size;
   bool isSizeDynamic;
 
@@ -87,8 +85,6 @@ public:
       _host_address(_address),
       id(counter++), 
       size(0),
-      constraint_addr(0),
-      constraint_size(0),
       symbolic_size(0),
       isSizeDynamic(false),
       isFixed(true),
@@ -105,9 +101,6 @@ public:
       _host_address(0),
       id(counter++),
       size(0),
-      constraint_addr(_address),
-      constraint_size(_size),
-
       name("unnamed"),
       isLocal(_isLocal),
       isGlobal(_isGlobal),
@@ -128,8 +121,6 @@ public:
       _host_address(_address),
       id(counter++),
       size(_size),
-      constraint_addr(0),
-      constraint_size(0),
       symbolic_size(0),
       isSizeDynamic(false),
       
