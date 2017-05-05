@@ -1,7 +1,8 @@
 SRC = heap.c 
 OBJ = $(SRC:.c=.bc)
 CLG = clang
-CFLAGS = -I../../include
+CFLAGS = -I../../include #-fsanitize=address
+#LDFLAGS=-fsanitize=address
 
 all: clean comp run
 

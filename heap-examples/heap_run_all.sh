@@ -1,3 +1,3 @@
 #!/bin/sh
 
-for i in Heap*; do make -C $i; done
+for i in heap*; do make -C $i; done

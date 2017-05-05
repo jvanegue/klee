@@ -13,8 +13,8 @@ int main(int argc, char *argv[])
   if (a == NULL)
     return (0);
   int index = atoi(argv[0]);
-  if (index > 10)
-    return (0);
+  //if (index > 10)
+  //return (0);
   a->array[index] = 0;
   return 0;
 }
