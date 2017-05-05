@@ -90,7 +90,7 @@ MemoryManager::~MemoryManager() {
   while (!objects.empty()) {
     MemoryObject *mo = *objects.begin();
     if (!mo->isFixed && !DeterministicAllocation)
-      free((void *)mo->host_address);
+      free((void *)mo->host_address());
     objects.erase(mo);
     delete mo;
   }
@@ -208,7 +208,7 @@ MemoryObject *MemoryManager::allocateFixed(uint64_t address, uint64_t size,
   for (objects_ty::iterator it = objects.begin(), ie = objects.end(); it != ie;
        ++it) {
     MemoryObject *mo = *it;
-    if (address + size > mo->address && address < mo->address + mo->size)
+    if (address + size > mo->guest_address() && address < mo->guest_address() + mo->size)
       klee_error("Trying to allocate an overlapping object");
   }
 #endif
@@ -225,7 +225,7 @@ void MemoryManager::deallocate(const MemoryObject *mo) { assert(0); }
 void MemoryManager::markFreed(MemoryObject *mo) {
   if (objects.find(mo) != objects.end()) {
     if (!mo->isFixed && !DeterministicAllocation)
-      free((void *)mo->host_address);
+      free((void *)mo->host_address());
     objects.erase(mo);
   }
 }

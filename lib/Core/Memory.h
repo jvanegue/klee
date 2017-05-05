@@ -38,14 +38,13 @@ private:
   static int counter;
   mutable unsigned refCount;
 
+  // Guest address, used a the key in MemoryMap and thus used to find a memory object by address
+  uint64_t _guest_address;
+  // Points to the memory returned by malloc() on the host (in KLEE)
+  uint64_t _host_address;
+  
 public:
   unsigned id;
-
-  // Guest address, used a the key in MemoryMap and thus used to find a memory object by address
-  // TODO: rename to guest address
-  uint64_t address;
-  // Points to the memory returned by malloc() on the host
-  uint64_t host_address;
   unsigned size;
 
   // When address and size are symbolic
@@ -84,9 +83,9 @@ public:
   explicit
   MemoryObject(uint64_t _address) 
     : refCount(0),
+      _guest_address(_address),
+      _host_address(_address),
       id(counter++), 
-      address(_address),
-      host_address(_address),
       size(0),
       constraint_addr(0),
       constraint_size(0),
@@ -102,9 +101,9 @@ public:
                const llvm::Value *_allocSite,
                MemoryManager *_parent)
     : refCount(0), 
+      _guest_address(0),
+      _host_address(0),
       id(counter++),
-      
-      address(0),
       size(0),
       constraint_addr(_address),
       constraint_size(_size),
@@ -125,10 +124,9 @@ public:
                const llvm::Value *_allocSite,
                MemoryManager *_parent)
     : refCount(0), 
+      _guest_address(_address),
+      _host_address(_address),
       id(counter++),
-
-      address(_address),
-      host_address(_address),
       size(_size),
       constraint_addr(0),
       constraint_size(0),
@@ -146,6 +144,16 @@ public:
 
   ~MemoryObject();
 
+  // JV: Make sure all access to guest or host address is done through API
+  // This will make it easy to shim memory access may we decide to change how KLEE tracks (heap) memory objects
+  uint64_t	guest_address() const { return _guest_address; }
+
+  void		guest_address_set(uint64_t val) { _guest_address = val; }
+  
+  uint64_t	host_address() const { return _host_address; }
+
+  void		host_address_set(uint64_t val) { _host_address = val; }
+  
   /// Get an identifying string for this allocation.
   void getAllocInfo(std::string &result) const;
 
@@ -154,7 +162,7 @@ public:
   }
 
   ref<ConstantExpr> getBaseExpr() const { 
-    return ConstantExpr::create(address, Context::get().getPointerWidth());
+    return ConstantExpr::create(_guest_address, Context::get().getPointerWidth());
   }
   ref<ConstantExpr> getSizeExpr() const { 
     return ConstantExpr::create(size, Context::get().getPointerWidth());
