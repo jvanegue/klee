@@ -9,7 +9,7 @@ comp:
 	#llvm-dis-3.4 $(OBJ)
 
 run:
-	klee $(OBJ) 256
+	klee $(OBJ) -stop-after-n-tests=1 --sym-args 1 1 1
 	#klee --libc=ucl--posix-runtime $(OBJ) --sym-args 1 1 1
 	#klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 10
 	#klee --libc=uclibc --posix-runtime $(OBJ) 255
@@ -20,5 +20,6 @@ run:
 
 clean:
 	rm -fr *.bc klee-last klee-out-0 *~ *.ll
+
 
 

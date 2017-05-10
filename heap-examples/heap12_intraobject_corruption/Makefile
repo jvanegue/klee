@@ -12,11 +12,12 @@ comp:
 	$(CLG) $(OBJ) -o $(EXE)
 
 run:
-	klee $(OBJ)
+	klee $(OBJ) -stop-after-n-tests=1 --sym-args 1 1 1
 	#klee --libc=uclibc $(OBJ)
 	#klee --libc=uclibc --posix-runtime $(OBJ)
 
 clean:
 	rm -fr *.bc klee-last klee-out-0 *~
+
 
 

@@ -8,7 +8,9 @@ int main(int argc, char *argv[])
 {
   //unsigned malloc_size;
   //klee_make_symbolic(&malloc_size, sizeof(malloc_size), "malloc_size");
-  unsigned int malloc_size = strlen(argv[0]);
+  if (argc != 2) return (-1);
+  
+  unsigned int malloc_size = strlen(argv[1]);
   
   if (malloc_size != 0)
     {

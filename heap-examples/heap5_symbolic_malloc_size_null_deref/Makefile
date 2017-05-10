@@ -8,9 +8,10 @@ comp:
 	$(CLG) -emit-llvm -c -g $(SRC)
 
 run:
-	klee $(OBJ)
+	klee $(OBJ) -stop-after-n-tests=1 --sym-args 1 1 1
 
 clean:
 	rm -fr *.bc klee-last klee-out-0 *~
+
 
 

@@ -615,6 +615,6 @@ void ObjectState::print_symbolics() {
       }
   }
   else {
-    llvm::errs() << "No symbolics in this state \n";
+    //llvm::errs() << "No symbolics in this state \n";
   }  
 }
