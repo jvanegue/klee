@@ -1416,7 +1416,7 @@ void Executor::executeCall(ExecutionState &state,
       }
 
       if (mo) {
-        if ((WordSize == Expr::Int64) && (mo->address & 15) &&
+        if ((WordSize == Expr::Int64) && (mo->guest_address() & 15) &&
             requires16ByteAlignment) {
           // Both 64bit Linux/Glibc and 64bit MacOSX should align to 16 bytes.
           klee_warning_once(
@@ -2967,7 +2967,7 @@ std::string Executor::getAddressInfo(ExecutionState &state,
     const MemoryObject *mo = lower->first;
     std::string alloc_info;
     mo->getAllocInfo(alloc_info);
-    info << "object at " << mo->address
+    info << "object at " << mo->guest_address()
          << " of size " << mo->size << "\n"
          << "\t\t" << alloc_info << "\n";
   }
@@ -2980,7 +2980,7 @@ std::string Executor::getAddressInfo(ExecutionState &state,
       const MemoryObject *mo = lower->first;
       std::string alloc_info;
       mo->getAllocInfo(alloc_info);
-      info << "object at " << mo->address 
+      info << "object at " << mo->guest_address() 
            << " of size " << mo->size << "\n"
            << "\t\t" << alloc_info << "\n";
     }
@@ -3408,8 +3408,8 @@ void Executor::executeAlloc(ExecutionState &state,
     //lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
     llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
     mo = memory->allocateWithSymbolicSize(size, lower_bound, isLocal, false, state.prevPC->inst);
-    mo->address = state.addressSpace.getFreeMemchunkAtGuest();
-    //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->address << "; size: " << mo->size << "\n";
+    mo->guest_address_set(state.addressSpace.getFreeMemchunkAtGuest());
+    //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->guest_address() << "; size: " << mo->size << "\n";
   }
 
   {
@@ -3433,9 +3433,9 @@ void Executor::executeAlloc(ExecutionState &state,
         state.addressSpace.unbindObject(reallocFrom->getObject());
 	if(!target) /* If we realloc a dynamic object */
 	{
-	  mo->address = reallocFrom->getObject()->address;
+	  mo->guest_address_set(reallocFrom->getObject()->guest_address());
 	  mo->allocSite = reallocFrom->getObject()->allocSite;
-          //llvm::outs() << "Executor::executeAlloc(): relocated to: " << mo->address << "; size: " << mo->size << "\n";
+          //llvm::outs() << "Executor::executeAlloc(): relocated to: " << mo->guest_address() << "; size: " << mo->size << "\n";
 	}
       }
     }
@@ -3643,7 +3643,7 @@ void Executor::resizeAllDynamicObjects(ExecutionState &state)
   {
     mo = op_end->first;
     os = op_end->second;
-    //llvm::outs() << "Executor::resizeAllDynamicObjects(): considering object at address: " << mo->address << "\n";
+    //llvm::outs() << "Executor::resizeAllDynamicObjects(): considering object at address: " << mo->guest_address() << "\n";
     if(!(mo->isSizeDynamic))
     {
       //llvm::outs() << "Executor::resizeAllDynamicObjects(): it's not dynamic\n";
@@ -3691,7 +3691,7 @@ ObjectState* Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &ol
   unsigned count = std::min(old_os->size, new_os->size);
   for (unsigned i=0; i<count; i++)
     new_os->write(i, old_os->read8(i));
-  new_mo->address = old_mo->address;
+  new_mo->guest_address_set(old_mo->guest_address());
   new_mo->allocSite = old_mo->allocSite;
 
   state.addressSpace.unbindObject(old_mo);
@@ -3920,7 +3920,7 @@ void Executor::runFunctionAsMain(Function *f,
       arguments.push_back(argvMO->getBaseExpr());
 
       if (++ai!=ae) {
-        uint64_t envp_start = argvMO->address + (argc+1)*NumPtrBytes;
+        uint64_t envp_start = argvMO->guest_address() + (argc+1)*NumPtrBytes;
         arguments.push_back(Expr::createPointer(envp_start));
 
         if (++ai!=ae)

@@ -12,7 +12,8 @@ comp:
 	$(CLG) $(OBJ) -o $(EXE)
 
 run:
-	klee --libc=uclibc $(OBJ)
+	klee $(OBJ)
+	#klee --libc=uclibc $(OBJ)
 	#klee --libc=uclibc --posix-runtime $(OBJ)
 
 clean:

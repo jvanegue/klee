@@ -61,8 +61,8 @@ bool AddressSpace::resolveOne(const ref<ConstantExpr> &addr,
     const MemoryObject *mo = res->first;
     // Check if the provided address is between start and end of the object
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
-    if ((mo->size==0 && address==mo->address) ||
-        (address - mo->address < mo->size)) {
+    if ((mo->size==0 && address==mo->guest_address()) ||
+        (address - mo->guest_address() < mo->size)) {
       result = *res;
       return true;
     }
@@ -84,8 +84,8 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     // [mo->address, mo->address + mo->size) or the object is a 0-sized object.
 
     if(!mo->isSizeDynamic)
-      if ((mo->size==0 && address==mo->address) ||
-          (address - mo->address < mo->size)) {
+      if ((mo->size==0 && address==mo->guest_address()) ||
+          (address - mo->guest_address() < mo->size)) {
         result = *res;
         return true;
       }
@@ -127,7 +127,7 @@ bool AddressSpace::resolveOne(ExecutionState &state,
     if (res) {
       const MemoryObject *mo = res->first;
       if(!mo->isSizeDynamic)
-        if (example - mo->address < mo->size) {
+        if (example - mo->guest_address() < mo->size) {
           result = *res;
           success = true;
           return true;
@@ -342,7 +342,7 @@ void AddressSpace::copyOutConcretes() {
 
     if (!mo->isUserSpecified) {
       ObjectState *os = it->second;
-      uint8_t *address = (uint8_t*) (unsigned long) mo->host_address;
+      uint8_t *address = (uint8_t*) (unsigned long) mo->host_address();
 
       if (!os->readOnly)
         memcpy(address, os->concreteStore, mo->size);
@@ -357,7 +357,7 @@ bool AddressSpace::copyInConcretes() {
 
     if (!mo->isUserSpecified) {
       const ObjectState *os = it->second;
-      uint8_t *address = (uint8_t*) (unsigned long) mo->host_address;
+      uint8_t *address = (uint8_t*) (unsigned long) mo->host_address();
 
       if (memcmp(address, os->concreteStore, mo->size)!=0) {
         if (os->readOnly) {
@@ -379,7 +379,7 @@ bool AddressSpace::copyInConcretes() {
  * We first use malloc() to allocate the memory on the host (this is the
  * where we will actually store the data). We then need to map this
  * memory on the guest: we iterate over state->addressSpace.objects
- * guest_addresses and try to find a free memory region of size bigger
+ * guest_address()es and try to find a free memory region of size bigger
  * then <size> We don't differentiate between the heap and the stack: we
  * put everything into one big chunk 
  *
@@ -395,7 +395,7 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
 {
   /* Now we need to find a free memory chunk at the guest
    * Note that addressSpace.objects is a map of memory objects 
-   * sorted by guest_address (see AddressSpace.h) */
+   * sorted by guest_address() (see AddressSpace.h) */
   MemoryMap::iterator obj_begin = this->objects.begin();
   MemoryMap::iterator obj_end = this->objects.end();
   uint64_t prev_begin = 0;
@@ -403,14 +403,14 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
   uint64_t prev_size = 0;
   uint64_t cur_size = 0;
 
-  uint64_t guest_address = 0;
+  uint64_t chosen_guest_address = 0;
   bool first = false;
 
   /* If we don't have any objects yet, reserve space at the
    * highest memory address */
   if (obj_begin == obj_end) 
   {
-    guest_address = MEMHIGH - CHUNKSIZE;
+    chosen_guest_address = MEMHIGH - CHUNKSIZE;
     first = true;
   }
   /* Else iterate through objects from the end: i.e from highest to lowest memory address */
@@ -419,7 +419,7 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
     const MemoryObject *obj = NULL;
     --obj_end; // Now it points to the latest object (at highest memory location)
     obj = obj_end->first;
-    prev_begin = obj->address;
+    prev_begin = obj->guest_address();
     if(obj->isSizeDynamic) {prev_size = CHUNKSIZE;} else {prev_size = obj->size;};
     if(prev_begin + prev_size < MEMHIGH - CHUNKSIZE) return MEMHIGH - CHUNKSIZE;
     while (obj_begin != obj_end)
@@ -427,36 +427,36 @@ uint64_t AddressSpace::getFreeMemchunkAtGuest()
       --obj_end; // Going from the end
       obj = obj_end->first;
       if(obj->isSizeDynamic) {cur_size = CHUNKSIZE;} else {cur_size = obj->size;};
-      cur_end = obj->address + cur_size;
+      cur_end = obj->guest_address() + cur_size;
       if ((cur_end + CHUNKSIZE) <= prev_begin)
       {
-        guest_address = prev_begin - CHUNKSIZE;
+        chosen_guest_address = prev_begin - CHUNKSIZE;
         break;
       }
-      prev_begin = obj->address;
+      prev_begin = obj->guest_address();
     }
   }
 
   /* We reached the wilderness */
   if (!first && obj_begin == obj_end)
   {
-    guest_address = prev_begin - CHUNKSIZE;
-    assert((guest_address > MEMLOW) && "too many objects with dynamic size");
+    chosen_guest_address = prev_begin - CHUNKSIZE;
+    assert((chosen_guest_address > MEMLOW) && "too many objects with dynamic size");
   }
 
-  if (guest_address == 0)
+  if (chosen_guest_address == 0)
     {
       llvm::outs() << "Selected guest address is 0 - this should never happen \n";
       return (0);
     }
   
-  //llvm::outs() << " Found apporpriate memory chunk:  ++ [" << guest_address << " - " << guest_address+CHUNKSIZE << "]\n";
-  return guest_address;
+  //llvm::outs() << " Found apporpriate memory chunk:  ++ [" << guest_address() << " - " << guest_address()+CHUNKSIZE << "]\n";
+  return chosen_guest_address;
 }
 
 /***/
 
 bool MemoryObjectLT::operator()(const MemoryObject *a, const MemoryObject *b) const {
-  return a->address < b->address;
+  return a->guest_address() < b->guest_address();
 }
 
