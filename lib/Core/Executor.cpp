@@ -1536,6 +1536,16 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
 
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   Instruction *i = ki->inst;
+
+  // Print AddressSpace symbolic state at each instruction
+  // Wrap this around an option
+  for (MemoryMap::iterator it = state.addressSpace.objects.begin();
+       it != state.addressSpace.objects.end(); ++it)
+    {
+      ObjectState *os = it->second;
+      os->print_symbolics();
+    }
+  
   switch (i->getOpcode()) {
     // Control flow
   case Instruction::Ret: {
@@ -1877,11 +1887,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
           ConstantExpr *address = dyn_cast<ConstantExpr>(arguments[i]);
 	  if (!address)
 	    {
-	      llvm::outs() << "Executor::executeInstruction()::Call: It's a symbolic pointer!\n";
+	      llvm::outs() << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
 	    }
 	  else
 	  {
-            llvm::outs() << "Executor::executeInstruction()::Call: It's a constant pointer, resolving the corresponding memory object!\n";
+            llvm::outs() << "Executor::executeInstruction()::Call: argument is a constant pointer, resolving the corresponding memory object!\n";
             ObjectPair op;
             bool success;
             solver->setTimeout(coreSolverTimeout);

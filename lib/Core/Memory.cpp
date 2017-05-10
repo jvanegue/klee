@@ -604,3 +604,17 @@ void ObjectState::print() {
     llvm::errs() << "\t\t[" << un->index << "] = " << un->value << "\n";
   }
 }
+
+void ObjectState::print_symbolics() {
+  if (knownSymbolics) {
+    llvm::errs() << "List " << size << " symbolics in this state: \n";      
+    for (unsigned i=0; i<size; i++)
+      {
+	ref<Expr> symexpr = knownSymbolics[i];
+	symexpr->dump();
+      }
+  }
+  else {
+    llvm::errs() << "No symbolics in this state \n";
+  }  
+}

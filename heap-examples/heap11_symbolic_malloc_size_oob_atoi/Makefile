@@ -9,7 +9,8 @@ comp:
 	#llvm-dis-3.4 $(OBJ)
 
 run:
-	klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 1
+	klee $(OBJ) 256
+	#klee --libc=ucl--posix-runtime $(OBJ) --sym-args 1 1 1
 	#klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 10
 	#klee --libc=uclibc --posix-runtime $(OBJ) 255
 	#klee --libc=uclibc --posix-runtime $(OBJ) 0

@@ -306,6 +306,10 @@ private:
 
   void print();
   ArrayCache *getArrayCache() const;
+
+public:
+  void print_symbolics();
+  
 };
   
 } // End klee namespace
