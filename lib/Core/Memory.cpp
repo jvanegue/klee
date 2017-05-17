@@ -611,7 +611,8 @@ void ObjectState::print_symbolics() {
     for (unsigned i=0; i<size; i++)
       {
 	ref<Expr> symexpr = knownSymbolics[i];
-	symexpr->dump();
+	if (!symexpr.isNull())
+	  symexpr->dump();
       }
   }
   else {
