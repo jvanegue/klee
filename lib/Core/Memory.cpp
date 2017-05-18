@@ -607,6 +607,7 @@ void ObjectState::print() {
 
 void ObjectState::print_symbolics() {
   if (knownSymbolics) {
+    /*
     llvm::errs() << "List " << size << " symbolics in this state: \n";      
     for (unsigned i=0; i<size; i++)
       {
@@ -614,6 +615,7 @@ void ObjectState::print_symbolics() {
 	if (!symexpr.isNull())
 	  symexpr->dump();
       }
+    */
   }
   else {
     //llvm::errs() << "No symbolics in this state \n";

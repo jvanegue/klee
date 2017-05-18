@@ -324,8 +324,8 @@ namespace {
             cl::init(true));
 
   cl::opt<bool>
-  SymbolicStrlen("symbolic-strlen",
-            cl::desc("Inhibit forking at memory cap (vs. random terminate) (default=on)"),
+  SymbolicStubs("symbolic-stubs",
+            cl::desc("Enable symbolic propagation through stubs (like strlen or atoi) default = on"),
             cl::init(true));
 }
 
@@ -1592,9 +1592,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  StackFrame &sf = state.stack.back();
 	  std::vector<bool> argAttrs = sf.argAttrs;
 
-	  ret_is_symbolic = (argAttrs[0] && SymbolicStrlen);
-	  llvm::outs() << " ret of strlen/atoi is symbolic = " << ret_is_symbolic << "\n";
-	  fflush(stdout);
+	  KFunction *kf = sf.kf;
+	  std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
+	  llvm::errs() << "StackFrame Function = " << funcname << "\n";
+	  
+	  ret_is_symbolic = (argAttrs[0] && SymbolicStubs);
+	  llvm::errs() << " ret of strlen/atoi is symbolic = " << ret_is_symbolic
+		       << " argAttrs[0] = " << argAttrs[0]
+		       << " SymStubOpt: " << SymbolicStubs
+		       << "\n";
 	}
       
 	
@@ -1874,7 +1880,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     
     if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
     {
-      llvm::outs() << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
+      llvm::errs() << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
       unsigned numFormals = f->arg_size();
       llvm::Function::arg_iterator arg_it = f->arg_begin(); // This iterator gives us _static_ information about function arguments, e.g. its type
       for (unsigned i=0; i<numFormals; ++i) 
@@ -1883,15 +1889,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         llvm::Type *arg_type = arg->getType();
         if(isa<llvm::PointerType>(arg_type))
 	{
-          llvm::outs() << "Executor::executeInstruction()::Call: argument is a pointer\n";
+          llvm::errs() << "Executor::executeInstruction()::Call: argument is a pointer\n";
           ConstantExpr *address = dyn_cast<ConstantExpr>(arguments[i]);
 	  if (!address)
 	    {
-	      llvm::outs() << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
+	      llvm::errs() << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
 	    }
 	  else
 	  {
-            llvm::outs() << "Executor::executeInstruction()::Call: argument is a constant pointer, resolving the corresponding memory object!\n";
+            llvm::errs() << "Executor::executeInstruction()::Call: argument is a constant pointer, resolving the corresponding memory object!\n";
             ObjectPair op;
             bool success;
             solver->setTimeout(coreSolverTimeout);
@@ -1905,12 +1911,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 	    if (first_byte_is_const)
 	      {
-		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
+		llvm::errs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
 		argAttrs.push_back(false);
 	      }
 	    else
 	      {
-		llvm::outs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
+		llvm::errs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
 		argAttrs.push_back(true);
 	      }
 	    
@@ -1968,7 +1974,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
       if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
 	{
-	  llvm::outs() << "Now Going to executeCall on strlen/atoi\n";
+	  llvm::errs() << "Now Going to executeCall on strlen/atoi\n";
 	}
       
       executeCall(state, ki, f, arguments);
