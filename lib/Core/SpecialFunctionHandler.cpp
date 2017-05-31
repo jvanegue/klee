@@ -117,7 +117,7 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("malloc", handleMalloc, true),
   add("realloc", handleRealloc, true),
 
-  // JV -- these are used a lot in busybox
+  // JV -- these are used a lot in busybox instead of malloc/realloc
   add("xmalloc", handleMalloc, true),
   add("xrealloc", handleRealloc, true),
   
@@ -593,6 +593,9 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   Executor::StatePair zeroSize = executor.fork(state, 
                                                Expr::createIsZero(size), 
                                                true);
+
+  // JV: Add edges for states
+  executor.trackEdges(state, zeroSize, Executor::EDGE_HEAP, "zsra");
   
   if (zeroSize.first) { // size == 0
     executor.executeFree(*zeroSize.first, address, target);   
@@ -601,6 +604,9 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
     Executor::StatePair zeroPointer = executor.fork(*zeroSize.second, 
                                                     Expr::createIsZero(address), 
                                                     true);
+
+    // JV: Add edges for states
+    executor.trackEdges(*zeroSize.second, zeroPointer, Executor::EDGE_HEAP, "zpra");
     
     if (zeroPointer.first) { // address == 0
       executor.executeAlloc(*zeroPointer.first, size, false, target);

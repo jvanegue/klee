@@ -112,10 +112,16 @@ using namespace llvm;
 using namespace klee;
 
 
-
-
-
 namespace {
+
+  template <typename T>
+  std::string ToString(T val)
+  {
+    std::stringstream stream;
+    stream << val;
+    return stream.str();
+  }
+  
   cl::opt<bool>
   DumpStatesOnHalt("dump-states-on-halt",
                    cl::init(true),
@@ -327,6 +333,11 @@ namespace {
   SymbolicStubs("symbolic-stubs",
             cl::desc("Enable symbolic propagation through stubs (like strlen or atoi) default = on"),
             cl::init(true));
+
+  cl::opt<bool>
+  TrackEdges("track-edges",
+            cl::desc("Track Control Flow Edges and Symbolic State edges as they are visited. "),
+            cl::init(false));
 }
 
 
@@ -349,18 +360,23 @@ const char *Executor::TerminateReasonNames[] = {
   [ Unhandled ] = "xxx",
 };
 
+
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     InterpreterHandler *ih)
     : Interpreter(opts), kmodule(0), interpreterHandler(ih), searcher(0),
       externalDispatcher(new ExternalDispatcher(ctx)), statsTracker(0),
       pathWriter(0), symPathWriter(0), specialFunctionHandler(0),
-      processTree(0), replayKTest(0), replayPath(0), usingSeeds(0),
+      processTree(0),
+
+      next_state_id(1),
+
+      replayKTest(0), replayPath(0), usingSeeds(0),
       atMemoryLimit(false), inhibitForking(false), haltExecution(false),
       ivcEnabled(false),
       coreSolverTimeout(MaxCoreSolverTime != 0 && MaxInstructionTime != 0
                             ? std::min(MaxCoreSolverTime, MaxInstructionTime)
                             : std::max(MaxCoreSolverTime, MaxInstructionTime)),
-      debugInstFile(0), debugLogBuffer(debugBufferString) {
+      debugInstFile(0), debugHeapFile(0), debugLogBuffer(debugBufferString) {
 
   if (coreSolverTimeout) UseForkedCoreSolver = true;
   Solver *coreSolver = klee::createCoreSolver(CoreSolverToUse);
@@ -378,11 +394,14 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
   this->solver = new TimingSolver(solver, EqualitySubstitution);
   memory = new MemoryManager(&arrayCache);
 
-  if (optionIsSet(DebugPrintInstructions, FILE_ALL) ||
-      optionIsSet(DebugPrintInstructions, FILE_COMPACT) ||
-      optionIsSet(DebugPrintInstructions, FILE_SRC)) {
+  //if (optionIsSet(DebugPrintInstructions, FILE_ALL) ||
+  //  optionIsSet(DebugPrintInstructions, FILE_COMPACT) ||
+  //  optionIsSet(DebugPrintInstructions, FILE_SRC)) {
     std::string debug_file_name =
-        interpreterHandler->getOutputFilename("instructions.txt");
+      interpreterHandler->getOutputFilename("instructions.txt");
+    std::string heap_debug_file_name =
+      interpreterHandler->getOutputFilename("heapdebug.txt");
+    
     std::string ErrorInfo;
 #ifdef HAVE_ZLIB_H
     if (!DebugCompressInstructions) {
@@ -391,21 +410,27 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
     debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo,
                                              llvm::sys::fs::OpenFlags::F_Text);
+    debugHeapFile = new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo,
+                                             llvm::sys::fs::OpenFlags::F_Text);
+
 #else
     debugInstFile =
         new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo);
+    debugHeapFile =
+      new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo);
+    
 #endif
 #ifdef HAVE_ZLIB_H
     } else {
-      debugInstFile = new compressed_fd_ostream(
-          (debug_file_name + ".gz").c_str(), ErrorInfo);
+      debugInstFile = new compressed_fd_ostream((debug_file_name + ".gz").c_str(), ErrorInfo);
+      debugHeapFile = new compressed_fd_ostream((heap_debug_file_name + ".gz").c_str(), ErrorInfo);
     }
 #endif
     if (ErrorInfo != "") {
       klee_error("Could not open file %s : %s", debug_file_name.c_str(),
                  ErrorInfo.c_str());
     }
-  }
+    //}
 }
 
 
@@ -458,6 +483,87 @@ Executor::~Executor() {
   if (debugInstFile) {
     delete debugInstFile;
   }
+  
+  if (TrackEdges) {
+    doDumpEdges();
+  }
+
+  if (debugHeapFile) {
+    delete debugHeapFile;
+  }
+}
+
+
+/*** JV: Added in Heap-KLEE to track the heap state independently of the entire state space ***/
+void	Executor::doDumpEdges()
+{
+  (*debugHeapFile) << "Now dumping output graphs... \n";
+  
+  // Control Flow Graph
+  llvm::raw_fd_ostream *fd = interpreterHandler->openOutputFile("hklee-cfg.gv");
+  assert(fd && "Unable to open cfg graphviz file");
+  fd->seek(0);
+  *fd << "digraph cfg { \n\n";	    
+  *fd << "node [shape=box]; ";  
+  for (NodeMap::iterator it = ControlStates.begin(); it != ControlStates.end(); it++)
+    *fd << it->first << "; ";
+  *fd << "\n\n";
+  for (EdgeMap::iterator it = ControlEdges.begin(); it != ControlEdges.end(); it++)
+    {
+      StringPair pair = it->first;
+      *fd << " " << pair.first << " -> " << pair.second << ";\n";
+    }
+  *fd << "\n";
+  *fd << "overlap=false \n";
+  *fd << "label=\"Control Flow Graph\" \n";
+  *fd << "} \n ";
+  fd->flush();
+  delete fd;
+  
+  // State Space Graph
+  llvm::raw_fd_ostream *fd2 = interpreterHandler->openOutputFile("hklee-ss.gv");
+  assert(fd2 && "Unable to open ss graphviz file");
+  fd2->seek(0);      
+  *fd2 << "digraph ss { \n\n";
+  *fd2 << "size=\"7,10\" \n";
+  *fd2 << "node [width=.25,height=.375,fontsize=9]; \n";  
+  for (NodeMap::iterator it = SymStates.begin(); it != SymStates.end(); it++)
+    *fd2 << it->first << "; ";
+  *fd2 << "\n\n";
+  for (EdgeMap::iterator it = SymEdges.begin(); it != SymEdges.end(); it++)
+    {
+      StringPair pair = it->first;
+      *fd2 << " " << pair.first << " -> " << pair.second << ";\n";
+    }
+  *fd2 << "\n";
+  *fd2 << "overlap=false \n";
+  *fd2 << "label=\"Full State Space \" \n";
+  *fd2 << "} \n ";
+  fd2->flush();
+  delete fd2;
+  
+  // Heap State Graph
+  llvm::raw_fd_ostream *fd3 = interpreterHandler->openOutputFile("hklee-heap.gv");
+  assert(fd3 && "Unable to open heap graphviz file");
+  fd3->seek(0);
+  *fd3 << "digraph heap { \n\n";	    
+  for (NodeMap::iterator it = HeapStates.begin(); it != HeapStates.end(); it++)
+    *fd3 << it->first << " [label=\"" << it->second << "\", shape=rectangle]; \n";
+  *fd3 << "\n\n";
+  for (EdgeMap::iterator it = HeapEdges.begin(); it != HeapEdges.end(); it++)
+    {
+      StringPair pair = it->first;
+      std::string label = it->second;
+      *fd2 << " " << pair.first << " -> " << pair.second << " [label=\"" << label << "\"];\n";
+    }
+  *fd3 << "\n";
+  *fd3 << "overlap=false \n";
+  *fd3 << "label=\"Heap State Space\" \n";
+  *fd3 << "} \n ";
+  fd3->flush();
+  delete fd3;
+  
+  (*debugHeapFile) << "Finished dumping output graphs... \n";
 }
 
 /***/
@@ -721,6 +827,10 @@ void Executor::branch(ExecutionState &state,
     for (unsigned i=1; i<N; ++i) {
       ExecutionState *es = result[theRNG.getInt32() % i];
       ExecutionState *ns = es->branch();
+
+      // JV: Add these two states in the symbolic edges
+      this->trackEdges(*es, *ns, EDGE_SYM, "branch");
+      
       addedStates.push_back(ns);
       result.push_back(ns);
       es->ptreeNode->data = 0;
@@ -1219,6 +1329,7 @@ void Executor::executeGetValue(ExecutionState &state,
       conditions.push_back(EqExpr::create(e, *vit));
 
     std::vector<ExecutionState*> branches;
+    
     branch(state, conditions, branches);
     
     std::vector<ExecutionState*>::iterator bit = branches.begin();
@@ -1350,6 +1461,14 @@ void Executor::executeCall(ExecutionState &state,
     if (InvokeInst *ii = dyn_cast<InvokeInst>(i))
       transferToBasicBlock(ii->getNormalDest(), i->getParent(), state);
   } else {
+
+
+    // XXX: Just debug
+    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      {
+	(*debugHeapFile) << "1 STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
+      }
+    
     // FIXME: I'm not really happy about this reliance on prevPC but it is ok, I
     // guess. This just done to avoid having to pass KInstIterator everywhere
     // instead of the actual instruction, since we can't make a KInstIterator
@@ -1361,9 +1480,15 @@ void Executor::executeCall(ExecutionState &state,
     if (statsTracker)
       statsTracker->framePushed(state, &state.stack[state.stack.size()-2]);
 
+    // XXX: HEAP KLEE debug
+    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      {
+	(*debugHeapFile) << "2 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";
+	//llvm::errs() << "2 STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
+      }
+    
      // TODO: support "byval" parameter attribute
      // TODO: support zeroext, signext, sret attributes
-
     unsigned callingArgs = arguments.size();
     unsigned funcArgs = f->arg_size();
     if (!f->isVarArg()) {
@@ -1449,6 +1574,13 @@ void Executor::executeCall(ExecutionState &state,
     for (unsigned i=0; i<numFormals; ++i) 
       bindArgument(kf, i, state, arguments[i]);
   }
+
+  // XXX: Just debug
+  if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+    {
+      (*debugHeapFile) << "3 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";	
+    }
+  
 }
 
 void Executor::transferToBasicBlock(BasicBlock *dst, BasicBlock *src, 
@@ -1534,6 +1666,7 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
   }
 }
 
+
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   Instruction *i = ki->inst;
 
@@ -1545,6 +1678,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ObjectState *os = it->second;
       os->print_symbolics();
     }
+
+  // Print LLVM instruction before symbolic execution
+  Function *f = i->getParent()->getParent();
+  (*debugHeapFile) << "[PC:" << ki->info->assemblyLine << "] "
+                   //<< "[PC:" << (*state.pc).info->assemblyLine << "][PREVPC:" << (*state.prevPC).info->assemblyLine << "] "
+		   << "LLVM INSTR: " << i->getOpcodeName()
+		   << " (depth = " << state.stack.size() << ") Parent func = " << f->getName() << "\n";
+  debugHeapFile->flush();
   
   switch (i->getOpcode()) {
     // Control flow
@@ -1591,16 +1732,20 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	{
 	  StackFrame &sf = state.stack.back();
 	  std::vector<bool> argAttrs = sf.argAttrs;
+	  
+	  //StackFrame &sf2 = state.stack.back()
+	  //std::vector<bool> argAttrs2 = sf2.argAttrs;
 
 	  KFunction *kf = sf.kf;
 	  std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
-	  llvm::errs() << "StackFrame Function = " << funcname << "\n";
+	  (*debugHeapFile) << "StackFrame Function = " << funcname << " framenbr = " << state.stack.size() << "\n";
 	  
 	  ret_is_symbolic = (argAttrs[0] && SymbolicStubs);
-	  llvm::errs() << " ret of strlen/atoi is symbolic = " << ret_is_symbolic
-		       << " argAttrs[0] = " << argAttrs[0]
-		       << " SymStubOpt: " << SymbolicStubs
-		       << "\n";
+	  (*debugHeapFile) << "RETURN of STRLEN/ATOI is symbolic = " << ret_is_symbolic
+		           << " argAttrs[0]  = " << argAttrs[0]
+	    // << " argAttrs2[0] = " << argAttrs2[0]
+		           << " SymStubOpt: " << SymbolicStubs
+		           << "\n";
 	}
       
 	
@@ -1639,7 +1784,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 	  if (ret_is_symbolic)
 	    {
-	      llvm::outs() << "SET return value AS symbolic \n";
+	      (*debugHeapFile) << "SET return value AS symbolic \n";
 	      bindLocal(kcaller, state, sym_result);
 	      //ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, sym_result));     
 	      //state.addConstraint(eq);
@@ -1647,11 +1792,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	      ConstantExpr* test = dyn_cast<ConstantExpr>(sym_result);
 	      if (test)
 		{
-		  llvm::outs() << "RET value could be cast to ConstantExpr \n";
+		  (*debugHeapFile) << "RET value could be cast to ConstantExpr \n";
 		}
 	      else
 		{
-		  llvm::outs() << "RET value could not be cast to ConstantExpr \n";
+		  (*debugHeapFile) << "RET value could not be cast to ConstantExpr \n";
 		}
 	      fflush(stdout);
 	    }
@@ -1705,6 +1850,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       ref<Expr> cond = eval(ki, 0, state).value;
       Executor::StatePair branches = fork(state, cond, false);
 
+      // JV: Add edges for states
+      this->trackEdges(state, branches, Executor::EDGE_SYM, "br2");
+      
       // NOTE: There is a hidden dependency here, markBranchVisited
       // requires that we still be in the context of the branch
       // instruction (it reuses its statistic id). Should be cleaned
@@ -1861,10 +2009,33 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     Value *fp = cs.getCalledValue();
     Function *f = getTargetFunction(fp, state);
 
+    /**************/
+    /* Track control flow edge to graph at termination time */
+    Function *fparent = i->getParent()->getParent();
+    std::string fct_src_name = (fparent == NULL ? "unknown_fsrc" : fparent->getName());
+    std::string fct_dst_name = (f == NULL ? "unknown_fdst" : f->getName());
+
+    // Only print the part of the state space that is outside klee 
+    if (fct_dst_name.find("klee") == std::string::npos &&
+	fct_src_name.find("klee") == std::string::npos)
+      {	
+	std::replace(fct_src_name.begin(), fct_src_name.end(), '.', '_');
+	std::replace(fct_dst_name.begin(), fct_dst_name.end(), '.', '_');
+	if (ControlStates.find(fct_src_name) == ControlStates.end())
+	  ControlStates[fct_src_name] = fct_src_name;
+	if (ControlStates.find(fct_dst_name) == ControlStates.end())
+	  ControlStates[fct_dst_name] = fct_dst_name;
+	
+	StringPair fpair = std::make_pair(fct_src_name,fct_dst_name);
+	if (ControlEdges.count(fpair) == 0)
+	  ControlEdges[fpair] = "";
+      }
+    /*************/
+    
     // Skip debug intrinsics, we can't evaluate their metadata arguments.
     if (f && isDebugIntrinsic(f, kmodule))
       break;
-
+    
     if (isa<InlineAsm>(fp)) {
       terminateStateOnExecError(state, "inline assembly is unsupported");
       break;
@@ -1880,30 +2051,30 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     
     if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
     {
-      llvm::errs() << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
+      (*debugHeapFile) << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
       unsigned numFormals = f->arg_size();
       llvm::Function::arg_iterator arg_it = f->arg_begin(); // This iterator gives us _static_ information about function arguments, e.g. its type
       for (unsigned i=0; i<numFormals; ++i) 
       {
         llvm::Value *arg = arg_it;
         llvm::Type *arg_type = arg->getType();
-        if(isa<llvm::PointerType>(arg_type))
+        if (isa<llvm::PointerType>(arg_type))
 	{
-          llvm::errs() << "Executor::executeInstruction()::Call: argument is a pointer\n";
+          (*debugHeapFile) << "Executor::executeInstruction()::Call: argument[" << i << "] is a pointer\n";
           ConstantExpr *address = dyn_cast<ConstantExpr>(arguments[i]);
 	  if (!address)
 	    {
-	      llvm::errs() << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
+	      (*debugHeapFile) << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
 	    }
 	  else
 	  {
-            llvm::errs() << "Executor::executeInstruction()::Call: argument is a constant pointer, resolving the corresponding memory object!\n";
+            (*debugHeapFile) << "Executor::executeInstruction()::Call: argument is a constant pointer, resolving the corresponding memory object!\n";
             ObjectPair op;
             bool success;
             solver->setTimeout(coreSolverTimeout);
             success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
             solver->setTimeout(0);
-	    assert(success && "[-] Ivan: Cannot resolve memobject for strlen/atoi arg");
+	    assert(success && "[-] Failed to resolve memobject for strlen/atoi argument");
             //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
             const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
             ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 8-bit element.
@@ -1911,15 +2082,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 	    if (first_byte_is_const)
 	      {
-		llvm::errs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
+		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
 		argAttrs.push_back(false);
 	      }
 	    else
 	      {
-		llvm::errs() << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
+		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
 		argAttrs.push_back(true);
 	      }
-	    
 	  }
         } 
 	++arg_it;
@@ -1928,6 +2098,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     StackFrame &sf = state.stack.back();
     sf.argAttrs = argAttrs;
+
+    // XXX: Just debug
+    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      {
+	(*debugHeapFile) << "STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
+	KFunction *kf = sf.kf;
+	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
+	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
+      }
     
     if (f) {
       const FunctionType *fType = 
@@ -1971,14 +2150,22 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
           i++;
         }
       }
-
+      
       if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
 	{
-	  llvm::errs() << "Now Going to executeCall on strlen/atoi\n";
+	  (*debugHeapFile) << "Now Going to executeCall on strlen/atoi\n";
 	}
       
       executeCall(state, ki, f, arguments);
 
+     if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      {
+	(*debugHeapFile) << "4 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";	
+	KFunction *kf = sf.kf;
+	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
+	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
+      }
+      
       
     } else {
       ref<Expr> v = eval(ki, 0, state).value;
@@ -1995,6 +2182,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
         StatePair res = fork(*free, EqExpr::create(v, value), true);
+
+	// JV: Add edges for states
+	this->trackEdges(*free, res, Executor::EDGE_HEAP, "ctarget");
+	
         if (res.first) {
           uint64_t addr = value->getZExtValue();
           if (legalFunctions.count(addr)) {
@@ -2648,7 +2839,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     bindLocal(ki, state, ConstantExpr::alloc(Result, Expr::Bool));
     break;
   }
-  case Instruction::InsertValue: {
+ case Instruction::InsertValue: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
 
     ref<Expr> agg = eval(ki, 0, state).value;
@@ -2675,7 +2866,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     bindLocal(ki, state, result);
     break;
   }
-  case Instruction::ExtractValue: {
+ case Instruction::ExtractValue: {
     KGEPInstruction *kgepi = static_cast<KGEPInstruction*>(ki);
 
     ref<Expr> agg = eval(ki, 0, state).value;
@@ -2852,6 +3043,8 @@ void Executor::run(ExecutionState &initialState) {
 
   states.insert(&initialState);
 
+  (*debugHeapFile) << "KLEE " << (usingSeeds ? "IS" : "IS NOT") << " using seeds \n";
+  
   if (usingSeeds) {
     std::vector<SeedInfo> &v = seedMap[&initialState];
     
@@ -3262,17 +3455,17 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
                              Expr::getMinBytesForWidth(e->getWidth()));
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
-  llvm::errs() << "Making symbolic: " << eq << "\n";
+  (*debugHeapFile) << "Making symbolic: " << eq << "\n";
   state.addConstraint(eq);
   return res;
 }
 
-ObjectState *Executor::bindObjectInState(ExecutionState &state, 
+ ObjectState *Executor::bindObjectInState(ExecutionState &state, 
                                          const MemoryObject *mo,
                                          bool isLocal,
-                                         const Array *array) {
-  ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
-  state.addressSpace.bindObject(mo, os);
+					  const Array *array) {
+   ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
+   state.addressSpace.bindObject(mo, os);
 
   // Its possible that multiple bindings of the same mo in the state
   // will put multiple copies on this list, but it doesn't really
@@ -3341,6 +3534,131 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
   return value->getZExtValue();
 }
 
+
+// JV: used to remember edges in the state space on single branch
+ void Executor::trackEdges(ExecutionState& orig_state, ExecutionState& dest_state, int edge_type, std::string edge_label)
+ {
+   //std::string orig_statename  = ToString(orig_state.id);
+   std::string orig_sym_statename  = ToString(orig_state.last_sym_state_id);
+   //std::string orig_heap_statename  = ToString(orig_state.last_heap_state_id);
+   
+   switch (edge_type)
+     {
+
+       // Edges of the state space
+     case EDGE_SYM:
+       dest_state.id = this->next_state_id++;
+       dest_state.last_heap_state_id = orig_state.last_heap_state_id;
+       dest_state.last_sym_state_id = dest_state.id;
+       std::string dest_statename  = ToString(dest_state.id);
+       SymStates[dest_statename] = "";
+       StringPair fpair = std::make_pair(orig_sym_statename, dest_statename);
+       if (SymEdges.count(fpair) == 0)
+	 SymEdges[fpair] = edge_label;
+       return;
+       break;
+       
+       // Heap Space transitions : Case is currently not used in this context
+       /*
+	 case EDGE_HEAP:
+	 dest_state->id = this->next_state_id++;
+	 std::string dest_statename  = ToString(dest_state->id);
+	 HeapStates.push_back(dest_statename);
+	 StringPair fpair = std::make_pair(orig_statename, dest_statename);
+	 if (HeapEdges.count(fpair) == 0)
+	 HeapEdges[fpair] = "";
+	 break;
+       */
+       //default:
+       //break;
+     }
+       
+   assert(false && "Unknown branch edge type - exiting \n");
+ }
+ 
+// JV: used to remember edges in the state space on fork
+ void Executor::trackEdges(ExecutionState& orig_state, StatePair& spair, int edge_type, std::string edge_label)
+ {
+   std::string orig_sym_statename  = ToString(orig_state.last_sym_state_id);
+   std::string orig_heap_statename  = ToString(orig_state.last_heap_state_id);
+
+   switch (edge_type)
+     {
+
+       // Edges of the (non heap) symbolic state space
+     case EDGE_SYM:
+       if (spair.first)
+	 {
+	   spair.first->id = this->next_state_id++;
+	   spair.first->last_heap_state_id = orig_state.last_heap_state_id;
+	   spair.first->last_sym_state_id = spair.first->id;
+	   
+	   std::string left_statename  = ToString(spair.first->id);
+	   SymStates[left_statename] = "";
+	   StringPair fpair = std::make_pair(orig_sym_statename, left_statename);
+	   if (SymEdges.count(fpair) == 0)
+	     SymEdges[fpair] = edge_label;
+	 }       
+       if (spair.second)
+	 {
+	   spair.second->id = this->next_state_id++;
+	   spair.second->last_heap_state_id = orig_state.last_heap_state_id;
+	   spair.second->last_sym_state_id = spair.second->id;
+	   
+	   std::string right_statename = ToString(spair.second->id);
+	   SymStates[right_statename] = "";
+	   StringPair fpair = std::make_pair(orig_sym_statename, right_statename);
+	   if (SymEdges.count(fpair) == 0)
+	     SymEdges[fpair] = edge_label;         
+	 }
+       break;
+
+       // The actual interesting thing: edges of the heap space
+     case EDGE_HEAP:
+       if (spair.first)
+	 {
+	   spair.first->id = this->next_state_id++;
+	   spair.first->last_heap_state_id = spair.first->id;
+	   spair.first->last_sym_state_id = orig_state.last_sym_state_id; 
+	   
+	   std::string left_state_name  = ToString(spair.first->id);
+	   std::string left_state_parent = spair.first->parentFunction();
+	   std::string left_state_objnum = ToString(spair.first->ObjectNbr());
+	   std::string left_state_constnum = ToString(spair.first->constraints.size());
+	   std::string left_state_label = left_state_parent + "," + left_state_objnum + "," + left_state_constnum;
+	   HeapStates[left_state_name] = left_state_label;
+	   
+	   StringPair fpair = std::make_pair(orig_heap_statename, left_state_name);
+	   if (HeapEdges.count(fpair) == 0)
+	     HeapEdges[fpair] = edge_label;
+	 }       
+       if (spair.second)
+	 {
+	   spair.second->id = this->next_state_id++;
+	   spair.second->last_heap_state_id = spair.second->id;
+	   spair.second->last_sym_state_id = orig_state.last_sym_state_id; 
+
+	   std::string right_state_name  = ToString(spair.second->id);
+	   std::string right_state_parent = spair.second->parentFunction();
+	   std::string right_state_objnum = ToString(spair.second->ObjectNbr());
+	   std::string right_state_constnum = ToString(spair.second->constraints.size());
+	   std::string right_state_label = right_state_parent + "," + right_state_objnum + "," + right_state_constnum;
+	   HeapStates[right_state_name] = right_state_label;
+	   
+	   StringPair fpair = std::make_pair(orig_heap_statename, right_state_name);
+	   if (HeapEdges.count(fpair) == 0)
+	     HeapEdges[fpair] = edge_label;         
+	 }
+       break;
+
+     default:
+       assert(false && "Unknown fork edge type - exiting \n");       
+     }
+   
+ }
+
+
+ 
 void Executor::executeAlloc(ExecutionState &state,
                             ref<Expr> size,
                             bool isLocal,
@@ -3374,9 +3692,8 @@ void Executor::executeAlloc(ExecutionState &state,
       
   } else /* When the size is symbolic */
   {
-
+    
     //llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
-
     
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
@@ -3387,11 +3704,15 @@ void Executor::executeAlloc(ExecutionState &state,
       fork(state, 
            UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth())), 
            true);
+    
+    // JV: Add edges for states
+    this->trackEdges(state, hugeSize, EDGE_HEAP, "ahs");
+    
     if (hugeSize.second) {
       klee_warning("Found huge malloc, forking and returning 0 for the second state.\n");
       bindLocal(target, *hugeSize.second, 
                 ConstantExpr::alloc(0, Context::get().getPointerWidth()));
-     /* We are done with hugeSize.second */
+      /* We are done with hugeSize.second */
     }
 
     //llvm::outs() << "Executor::executeAlloc(): hugeSize.first = " << hugeSize.first << "\n";
@@ -3412,7 +3733,7 @@ void Executor::executeAlloc(ExecutionState &state,
     solver->setTimeout(0);
     
     //lower_bound = getLowerBound(state, size); // Find minumum value of size which satisfies state.constraints
-    llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
+    (*debugHeapFile) << "Executor::executeAlloc(): Received an alloc request with symbolic size. The minimum size is " << lower_bound << "\n";
     mo = memory->allocateWithSymbolicSize(size, lower_bound, isLocal, false, state.prevPC->inst);
     mo->guest_address_set(state.addressSpace.getFreeMemchunkAtGuest());
     //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->guest_address() << "; size: " << mo->size << "\n";
@@ -3452,6 +3773,10 @@ void Executor::executeFree(ExecutionState &state,
                            ref<Expr> address,
                            KInstruction *target) {
   StatePair zeroPointer = fork(state, Expr::createIsZero(address), true);
+
+  // JV: Add edges for states
+  this->trackEdges(state, zeroPointer, EDGE_HEAP, "zfp");
+  
   if (zeroPointer.first) {
     if (target)
       bindLocal(target, *zeroPointer.first, Expr::createPointer(0));
@@ -3492,6 +3817,9 @@ void Executor::resolveExact(ExecutionState &state,
     ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
     
     StatePair branches = fork(*unbound, inBounds, true);
+
+    // JV: Add edges for states
+    this->trackEdges(*unbound, branches, EDGE_HEAP, "rslvxct");
     
     if (branches.first)
       results.push_back(std::make_pair(*it, branches.first));
@@ -3743,8 +4071,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     {
       //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = "
       //             << rl.size() << ". It's a memory error\n";
-      llvm::outs() << "HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer "
-		   << "(at address " << address << "). It's a memory error\n";
+      llvm::errs() << "HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer "
+		       << "(at address " << address << "). It's a memory error\n";
       terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
                             NULL, getAddressInfo(state, address));
       return;
@@ -3804,7 +4132,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     return;
   }
 
-  llvm::outs() << "Executor::executeMemoryOperation(): Resolved pointer of " << (mo->isSizeDynamic ? "DYNAMIC" : "STATIC") << " size WIH OOB ACCESS\n";
+  (*debugHeapFile) << "Executor::executeMemoryOperation(): Resolved pointer of " << (mo->isSizeDynamic ? "DYNAMIC" : "STATIC") << " size WIH OOB ACCESS\n";
   terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
                         NULL, getAddressInfo(state, address));
   return;
@@ -3936,6 +4264,10 @@ void Executor::runFunctionAsMain(Function *f,
   }
 
   ExecutionState *state = new ExecutionState(kmodule->functionMap[f]);
+
+  // JV: Add state id
+  if (state)
+    state->id = this->next_state_id++;
   
   if (pathWriter) 
     state->pathOS = pathWriter->open();

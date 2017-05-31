@@ -53,6 +53,8 @@ struct StackFrame {
   std::vector<const MemoryObject *> allocas;
   Cell *locals;
 
+  // We track whether arguments are symbolic here - this allow for
+  // synthetic symbolic propagation across stubs typically (strlen/atoi/etc)
   std::vector<bool>	argAttrs;
   
   /// Minimum distance to an uncovered instruction once the function
@@ -145,7 +147,7 @@ public:
 
   /// @brief Pointer to the process tree of the current state
   PTreeNode *ptreeNode;
-
+  
   /// @brief Ordered list of symbolics: used to generate test cases.
   //
   // FIXME: Move to a shared list structure (not critical).
@@ -154,6 +156,12 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
+  /// @id Unique id for that state
+  
+  unsigned int id;
+  unsigned int last_heap_state_id;
+  unsigned int last_sym_state_id;
+  
   std::string getFnAlias(std::string fn);
   void addFnAlias(std::string old_fn, std::string new_fn);
   void removeFnAlias(std::string fn);
@@ -162,7 +170,7 @@ public:
   std::map<llvm::Instruction *, ref<Expr> > getElmntPtrBases;
 
 private:
-  ExecutionState() : ptreeNode(0) {}
+  ExecutionState() : ptreeNode(0), id(0), last_heap_state_id(0), last_sym_state_id(0) {}
 
 public:
   ExecutionState(KFunction *kf);
@@ -185,6 +193,9 @@ public:
 
   bool merge(const ExecutionState &b);
   void dumpStack(llvm::raw_ostream &out) const;
+  
+  std::string	parentFunction();
+  size_t	ObjectNbr();  
 };
 }
 

@@ -78,13 +78,23 @@ ExecutionState::ExecutionState(KFunction *kf) :
     instsSinceCovNew(0),
     coveredNew(false),
     forkDisabled(false),
-    ptreeNode(0) {
+    ptreeNode(0),
+    id(0),
+    last_heap_state_id(0),
+    last_sym_state_id(0)
+{
   pushFrame(0, kf);
 }
 
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
-    : constraints(assumptions), queryCost(0.), ptreeNode(0) {}
-
+  : constraints(assumptions),
+    queryCost(0.),
+    ptreeNode(0),
+    id(0),
+    last_heap_state_id(0),
+    last_sym_state_id(0)
+{}
+    
 ExecutionState::~ExecutionState() {
   for (unsigned int i=0; i<symbolics.size(); i++)
   {
@@ -122,11 +132,38 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     ptreeNode(state.ptreeNode),
     symbolics(state.symbolics),
     arrayNames(state.arrayNames),
+
+    id(0),
+    last_heap_state_id(0),
+    last_sym_state_id(0),
+    
     getElmntPtrBases(state.getElmntPtrBases)
 {
   for (unsigned int i=0; i<symbolics.size(); i++)
     symbolics[i].first->refCount++;
 }
+
+
+std::string	ExecutionState::parentFunction()
+{
+  std::string unk("unknown");
+  Instruction *i = pc->inst;
+  if (i == NULL)
+    return unk;
+  Function *f = i->getParent()->getParent();
+  if (f == NULL)
+    return unk;
+  std::string name = f->getName();
+  return (name);
+}
+
+
+
+size_t	ExecutionState::ObjectNbr()
+{
+  return (addressSpace.objects.size());
+}
+
 
 ExecutionState *ExecutionState::branch() {
   depth++;
@@ -142,10 +179,12 @@ ExecutionState *ExecutionState::branch() {
 }
 
 void ExecutionState::pushFrame(KInstIterator caller, KFunction *kf) {
+  //llvm::errs() << "PUSH STACK FRAME \n";
   stack.push_back(StackFrame(caller,kf));
 }
 
 void ExecutionState::popFrame() {
+  //llvm::errs() << "POP STACK FRAME \n";
   StackFrame &sf = stack.back();
   for (std::vector<const MemoryObject*>::iterator it = sf.allocas.begin(), 
          ie = sf.allocas.end(); it != ie; ++it)

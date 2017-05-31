@@ -509,14 +509,14 @@ void StatsTracker::writeStatsLine() {
 
 
  void StatsTracker::writeAStatsLine() {
-   printf("Updating run.astats file \n");
+   //printf("Updating run.astats file \n");
    *astatsFile << "Total allocations: " << numAllocations << "\n";
    *astatsFile << "Const allocations: " << numConstAllocations << "\n";
    astatsFile->flush();
  }
 
  void StatsTracker::writeAStats() {
-   printf("Now writing Allocation run.astats file \n");
+   //printf("Now writing Allocation run.astats file \n");
    *astatsFile << "Total allocations: " << numAllocations << "\n";
    *astatsFile << "Const allocations: " << numConstAllocations << "\n";
    astatsFile->flush();

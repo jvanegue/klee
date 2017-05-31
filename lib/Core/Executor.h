@@ -101,7 +101,10 @@ public:
   };
 
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
-
+  typedef const std::pair<std::string,std::string>   StringPair;
+  typedef std::map<StringPair,std::string>	     EdgeMap;
+  typedef std::map<std::string,std::string>	     NodeMap;
+  
   enum TerminateReason {
     Abort,
     Assert,
@@ -117,6 +120,15 @@ public:
     Unhandled
   };
 
+  // Used to track states and edges for various graphs
+  enum EDGE_TYPE {
+    EDGE_UNKNOWN = 0,
+    EDGE_SYM = 1,
+    EDGE_HEAP = 2
+  };
+
+  
+  
 private:
   static const char *TerminateReasonNames[];
 
@@ -136,6 +148,18 @@ private:
   std::vector<TimerInfo*> timers;
   PTree *processTree;
 
+  /** Added in Heap KLEE */
+  
+  int				next_state_id;
+  NodeMap			HeapStates;
+  NodeMap			SymStates;
+  NodeMap			ControlStates;
+  EdgeMap			HeapEdges;
+  EdgeMap			SymEdges;
+  EdgeMap			ControlEdges;
+
+  /**********************/
+  
   /// Used to track states that have been added during the current
   /// instructions step. 
   /// \invariant \ref addedStates is a subset of \ref states. 
@@ -205,6 +229,9 @@ private:
   /// File to print executed instructions to
   llvm::raw_ostream *debugInstFile;
 
+  // File to print heap debug information
+  llvm::raw_ostream *debugHeapFile;
+  
   // @brief Buffer used by logBuffer
   std::string debugBufferString;
 
@@ -266,6 +293,10 @@ private:
   ObjectState* resizeDynamicObject(ExecutionState &state, ObjectPair &dyno_op);
   void resizeAllDynamicObjects(ExecutionState &state);
 
+  void trackEdges(ExecutionState& orig_state, ExecutionState& dest_state, int edge_type, std::string label);
+  void trackEdges(ExecutionState& orig_state, StatePair& spair, int edge_type, std::string label);
+
+  
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
   ///
@@ -440,7 +471,8 @@ private:
   void checkMemoryUsage();
   void printDebugInstructions(ExecutionState &state);
   void doDumpStates();
-
+  void doDumpEdges(); // XXX: HKLEE
+  
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,
       InterpreterHandler *ie);
