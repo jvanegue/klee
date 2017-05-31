@@ -472,6 +472,8 @@ private:
   void printDebugInstructions(ExecutionState &state);
   void doDumpStates();
   void doDumpEdges(); // XXX: HKLEE
+  void doDumpViolationState(ExecutionState& state, std::string label);
+
   
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,

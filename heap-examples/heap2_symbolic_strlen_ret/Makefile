@@ -17,7 +17,3 @@ run:
 
 clean:
 	rm -fr *.bc klee-last klee-out* *.png
-
-
-
-

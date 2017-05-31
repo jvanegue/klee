@@ -566,6 +566,25 @@ void	Executor::doDumpEdges()
   (*debugHeapFile) << "Finished dumping output graphs... \n";
 }
 
+
+/*** JV: When we encounter a violation, make sure the violation state is part of the output graph for visualiation ****/
+void Executor::doDumpViolationState(ExecutionState& state, std::string label)
+{
+  std::string orig_state_name  = ToString(state.last_heap_state_id);
+  std::string state_name  = ToString(state.id);
+  std::string state_parent = state.parentFunction();
+  std::string state_objnum = ToString(state.ObjectNbr());
+  std::string state_constnum = ToString(state.constraints.size());
+  std::string state_label = state_parent + "," + state_objnum + "," + state_constnum;
+  HeapStates[state_name] = state_label;
+  
+  StringPair fpair = std::make_pair(orig_state_name, state_name);
+  if (HeapEdges.count(fpair) == 0)
+    HeapEdges[fpair] = label;
+}
+
+
+
 /***/
 
 void Executor::initializeGlobalObject(ExecutionState &state, ObjectState *os,
@@ -3789,9 +3808,11 @@ void Executor::executeFree(ExecutionState &state,
            ie = rl.end(); it != ie; ++it) {
       const MemoryObject *mo = it->first.first;
       if (mo->isLocal) {
+	doDumpViolationState(state, "free of alloca");
         terminateStateOnError(*it->second, "free of alloca", Free, NULL,
                               getAddressInfo(*it->second, address));
       } else if (mo->isGlobal) {
+	doDumpViolationState(state, "free of global");
         terminateStateOnError(*it->second, "free of global", Free, NULL,
                               getAddressInfo(*it->second, address));
       } else {
@@ -3830,6 +3851,9 @@ void Executor::resolveExact(ExecutionState &state,
   }
 
   if (unbound) {
+
+    doDumpViolationState(state, "Invalid pointer access: " + name);
+    
     terminateStateOnError(*unbound, "memory error: invalid pointer: " + name,
                           Ptr, NULL, getAddressInfo(*unbound, p));
   }
@@ -4069,6 +4093,9 @@ void Executor::executeMemoryOperation(ExecutionState &state,
     //if(rl.size() != 1)
     if(!success)
     {
+
+      doDumpViolationState(state, "OOB pointer resolveOne");
+      
       //llvm::outs() << "Executor::executeMemoryOperation(): rl.size = "
       //             << rl.size() << ". It's a memory error\n";
       llvm::errs() << "HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer "
@@ -4133,6 +4160,12 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 
   (*debugHeapFile) << "Executor::executeMemoryOperation(): Resolved pointer of " << (mo->isSizeDynamic ? "DYNAMIC" : "STATIC") << " size WIH OOB ACCESS\n";
+
+  std::string label = "";
+  label += (mo->isLocal ? "Local" : (mo->isGlobal ? "Global" : (mo->isFixed ? "Fixed" : "Unknown")));
+  label += "OOB pointer access";
+  doDumpViolationState(state, label);
+  
   terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
                         NULL, getAddressInfo(state, address));
   return;

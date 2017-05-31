@@ -1,25 +1,19 @@
 SRC = heap15.c 
 OBJ = $(SRC:.c=.bc)
 CLG = clang-3.4
+CFLAGS = -I../../include -O0
 
 all: clean comp run
 
 comp:
-	$(CLG) -emit-llvm --target="x86_64-pc-linux-gnu" -c -g $(SRC)
-	#llvm-dis-3.4 $(OBJ)
+	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC)
 
 run:
-	klee $(OBJ) -stop-after-n-tests=1 --sym-args 1 1 1
-	#klee --libc=uclibc $(OBJ) #--sym-args 1 1 1
-	#klee --libc=uclibc --posix-runtime $(OBJ) --sym-args 1 1 10
-	#klee --libc=uclibc --posix-runtime $(OBJ) 255
-	#klee --libc=uclibc --posix-runtime $(OBJ) 0
-	#klee --libc=uclibc --posix-runtime $(OBJ) 1
-	#klee --libc=uclibc --posix-runtime $(OBJ) 256
-	#klee --libc=uclibc --posix-runtime $(OBJ) 65535
+	klee -track-edges -posix-runtime -libc=uclibc $(OBJ) --sym-args 1 2 10
+	#klee -posix-runtime -libc=uclibc -stop-after-n-tests=10 $(OBJ) --sym-args 1 2 10
+	dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
+	dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
+	dot -Tpng klee-out-0/hklee-heap.gv > hklee-heap.png
 
 clean:
-	rm -fr *.bc klee-last klee-out-0 *~ *.ll
-
-
-
+	rm -fr *.bc klee-last klee-out* *.png

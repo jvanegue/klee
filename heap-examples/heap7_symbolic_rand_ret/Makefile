@@ -8,10 +8,15 @@ comp:
 	$(CLG) -emit-llvm -c -g $(SRC)
 
 run:
-	klee $(OBJ) -stop-after-n-tests=1 --sym-args 1 1 1
+	klee -track-edges -posix-runtime -libc=uclibc $(OBJ) --sym-args 1 2 10
+	#klee -posix-runtime -libc=uclibc -stop-after-n-tests=10 $(OBJ) --sym-args 1 2 10
+	dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
+	dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
+	dot -Tpng klee-out-0/hklee-heap.gv > hklee-heap.png
 
 clean:
-	rm -fr *.bc klee-last klee-out-0 *~
+	rm -fr *.bc klee-last klee-out* *.png
+
 
 
 
