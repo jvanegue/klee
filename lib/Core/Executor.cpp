@@ -548,7 +548,11 @@ void	Executor::doDumpEdges()
   fd3->seek(0);
   *fd3 << "digraph heap { \n\n";	    
   for (NodeMap::iterator it = HeapStates.begin(); it != HeapStates.end(); it++)
-    *fd3 << it->first << " [label=\"" << it->second << "\", shape=rectangle]; \n";
+    {
+      StateDesc& desc = it->second;
+      std::string color = (desc.first ? "style=filled,fillcolor=red," : "");
+      *fd3 << it->first << " [label=\"" << desc.second << "\", " + color + "shape=rectangle]; \n";
+    }
   *fd3 << "\n\n";
   for (EdgeMap::iterator it = HeapEdges.begin(); it != HeapEdges.end(); it++)
     {
@@ -566,17 +570,23 @@ void	Executor::doDumpEdges()
   (*debugHeapFile) << "Finished dumping output graphs... \n";
 }
 
-
 /*** JV: When we encounter a violation, make sure the violation state is part of the output graph for visualiation ****/
 void Executor::doDumpViolationState(ExecutionState& state, std::string label)
 {
   std::string orig_state_name  = ToString(state.last_heap_state_id);
   std::string state_name  = ToString(state.id);
   std::string state_parent = state.parentFunction();
-  std::string state_objnum = ToString(state.ObjectNbr());
-  std::string state_constnum = ToString(state.constraints.size());
+
+  std::string local_objnum = ToString(state.addressSpace.local_obj_nbr);
+  std::string global_objnum = ToString(state.addressSpace.global_obj_nbr);
+  std::string fixed_objnum = ToString(state.addressSpace.fixed_obj_nbr);
+  std::string sym_objnum = ToString(state.addressSpace.symbolic_obj_nbr);
+  std::string total_objnum = ToString(state.ObjectNbr());
+  std::string state_objnum = "(" + total_objnum + "=(" + global_objnum + "g," + local_objnum + "l)," + sym_objnum + "s," + fixed_objnum + "f)";
+  
+  std::string state_constnum = ToString(state.constraints.size()) + "c";
   std::string state_label = state_parent + "," + state_objnum + "," + state_constnum;
-  HeapStates[state_name] = state_label;
+  HeapStates[state_name] = std::make_pair(true,state_label);
   
   StringPair fpair = std::make_pair(orig_state_name, state_name);
   if (HeapEdges.count(fpair) == 0)
@@ -2041,9 +2051,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	std::replace(fct_src_name.begin(), fct_src_name.end(), '.', '_');
 	std::replace(fct_dst_name.begin(), fct_dst_name.end(), '.', '_');
 	if (ControlStates.find(fct_src_name) == ControlStates.end())
-	  ControlStates[fct_src_name] = fct_src_name;
+	  ControlStates[fct_src_name] = std::make_pair(false,fct_src_name);
 	if (ControlStates.find(fct_dst_name) == ControlStates.end())
-	  ControlStates[fct_dst_name] = fct_dst_name;
+	  ControlStates[fct_dst_name] = std::make_pair(false,fct_dst_name);
 	
 	StringPair fpair = std::make_pair(fct_src_name,fct_dst_name);
 	if (ControlEdges.count(fpair) == 0)
@@ -3481,16 +3491,32 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
 
  ObjectState *Executor::bindObjectInState(ExecutionState &state, 
                                          const MemoryObject *mo,
-                                         bool isLocal,
+                                         bool SaidIsLocal,
 					  const Array *array) {
    ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
    state.addressSpace.bindObject(mo, os);
 
+   /*** H-KLEE: fine grained tracking of memory objects */
+   bool isSymbolic = array ? true : false;
+   bool isFixed = mo->isFixed;
+   bool isGlobal = mo->isGlobal;
+   bool isLocal = mo->isLocal;
+
+   if (isLocal != SaidIsLocal)
+     klee_warning("Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)");
+   if (isLocal == true && isGlobal == true)
+     klee_warning("Object is both local and global (inconsistent object state)");
+   
+   if (isSymbolic) state.addressSpace.symbolic_obj_nbr++;
+   if (isFixed) state.addressSpace.fixed_obj_nbr++;
+   if (isGlobal) state.addressSpace.global_obj_nbr++;
+   if (isLocal) state.addressSpace.local_obj_nbr++;     
+   
   // Its possible that multiple bindings of the same mo in the state
   // will put multiple copies on this list, but it doesn't really
   // matter because all we use this list for is to unbind the object
   // on function return.
-  if (isLocal)
+  if (SaidIsLocal)
     state.stack.back().allocas.push_back(mo);
 
   return os;
@@ -3570,7 +3596,7 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
        dest_state.last_heap_state_id = orig_state.last_heap_state_id;
        dest_state.last_sym_state_id = dest_state.id;
        std::string dest_statename  = ToString(dest_state.id);
-       SymStates[dest_statename] = "";
+       SymStates[dest_statename] = std::make_pair(false,"");
        StringPair fpair = std::make_pair(orig_sym_statename, dest_statename);
        if (SymEdges.count(fpair) == 0)
 	 SymEdges[fpair] = edge_label;
@@ -3613,7 +3639,7 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 	   spair.first->last_sym_state_id = spair.first->id;
 	   
 	   std::string left_statename  = ToString(spair.first->id);
-	   SymStates[left_statename] = "";
+	   SymStates[left_statename] = std::make_pair(false,"");
 	   StringPair fpair = std::make_pair(orig_sym_statename, left_statename);
 	   if (SymEdges.count(fpair) == 0)
 	     SymEdges[fpair] = edge_label;
@@ -3625,7 +3651,7 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 	   spair.second->last_sym_state_id = spair.second->id;
 	   
 	   std::string right_statename = ToString(spair.second->id);
-	   SymStates[right_statename] = "";
+	   SymStates[right_statename] = std::make_pair(false,"");
 	   StringPair fpair = std::make_pair(orig_sym_statename, right_statename);
 	   if (SymEdges.count(fpair) == 0)
 	     SymEdges[fpair] = edge_label;         
@@ -3642,10 +3668,18 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 	   
 	   std::string left_state_name  = ToString(spair.first->id);
 	   std::string left_state_parent = spair.first->parentFunction();
-	   std::string left_state_objnum = ToString(spair.first->ObjectNbr());
-	   std::string left_state_constnum = ToString(spair.first->constraints.size());
-	   std::string left_state_label = left_state_parent + "," + left_state_objnum + "," + left_state_constnum;
-	   HeapStates[left_state_name] = left_state_label;
+
+	   std::string llocal_objnum = ToString(spair.first->addressSpace.local_obj_nbr);
+	   std::string lglobal_objnum = ToString(spair.first->addressSpace.global_obj_nbr);
+	   std::string lfixed_objnum = ToString(spair.first->addressSpace.fixed_obj_nbr);
+	   std::string lsym_objnum = ToString(spair.first->addressSpace.symbolic_obj_nbr);
+	   std::string ltotal_objnum = ToString(spair.first->ObjectNbr());
+	   std::string lstate_objnum = "(" + ltotal_objnum + "=(" +
+	     lglobal_objnum + "g," + llocal_objnum + "l)," + lsym_objnum + "s," + lfixed_objnum + "f)";
+	   
+	   std::string left_state_constnum = ToString(spair.first->constraints.size()) + "c";
+	   std::string left_state_label = left_state_parent + "," + lstate_objnum + "," + left_state_constnum;
+	   HeapStates[left_state_name] = std::make_pair(false,left_state_label);
 	   
 	   StringPair fpair = std::make_pair(orig_heap_statename, left_state_name);
 	   if (HeapEdges.count(fpair) == 0)
@@ -3659,10 +3693,18 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 
 	   std::string right_state_name  = ToString(spair.second->id);
 	   std::string right_state_parent = spair.second->parentFunction();
-	   std::string right_state_objnum = ToString(spair.second->ObjectNbr());
-	   std::string right_state_constnum = ToString(spair.second->constraints.size());
-	   std::string right_state_label = right_state_parent + "," + right_state_objnum + "," + right_state_constnum;
-	   HeapStates[right_state_name] = right_state_label;
+
+	   std::string rlocal_objnum = ToString(spair.second->addressSpace.local_obj_nbr);
+	   std::string rglobal_objnum = ToString(spair.second->addressSpace.global_obj_nbr);
+	   std::string rfixed_objnum = ToString(spair.second->addressSpace.fixed_obj_nbr);
+	   std::string rsym_objnum = ToString(spair.second->addressSpace.symbolic_obj_nbr);
+	   std::string rtotal_objnum = ToString(spair.second->ObjectNbr());
+	   std::string rstate_objnum = "(" + rtotal_objnum + "=(" +
+	     rglobal_objnum + "g," + rlocal_objnum + "l)," + rsym_objnum + "s," + rfixed_objnum + "f)";
+	   
+	   std::string right_state_constnum = ToString(spair.second->constraints.size()) + "c";
+	   std::string right_state_label = right_state_parent + "," + rstate_objnum + "," + right_state_constnum;
+	   HeapStates[right_state_name] = std::make_pair(false,right_state_label);
 	   
 	   StringPair fpair = std::make_pair(orig_heap_statename, right_state_name);
 	   if (HeapEdges.count(fpair) == 0)
@@ -4162,8 +4204,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   (*debugHeapFile) << "Executor::executeMemoryOperation(): Resolved pointer of " << (mo->isSizeDynamic ? "DYNAMIC" : "STATIC") << " size WIH OOB ACCESS\n";
 
   std::string label = "";
-  label += (mo->isLocal ? "Local" : (mo->isGlobal ? "Global" : (mo->isFixed ? "Fixed" : "Unknown")));
-  label += "OOB pointer access";
+  label += (mo->isLocal ? "Local" : (mo->isGlobal ? "Global" : (mo->isFixed ? "Fixed" : "Unk")));
+  label += " OOB";
   doDumpViolationState(state, label);
   
   terminateStateOnError(state, "memory error: out of bound pointer", Ptr,

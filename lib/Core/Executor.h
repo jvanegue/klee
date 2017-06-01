@@ -102,8 +102,9 @@ public:
 
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
   typedef const std::pair<std::string,std::string>   StringPair;
+  typedef std::pair<bool,std::string>		     StateDesc;
   typedef std::map<StringPair,std::string>	     EdgeMap;
-  typedef std::map<std::string,std::string>	     NodeMap;
+  typedef std::map<std::string,StateDesc>	     NodeMap;
   
   enum TerminateReason {
     Abort,
@@ -148,8 +149,7 @@ private:
   std::vector<TimerInfo*> timers;
   PTree *processTree;
 
-  /** Added in Heap KLEE */
-  
+  /** Added in Heap KLEE */  
   int				next_state_id;
   NodeMap			HeapStates;
   NodeMap			SymStates;
@@ -157,7 +157,7 @@ private:
   EdgeMap			HeapEdges;
   EdgeMap			SymEdges;
   EdgeMap			ControlEdges;
-
+  
   /**********************/
   
   /// Used to track states that have been added during the current

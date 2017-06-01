@@ -156,8 +156,9 @@ public:
   /// @brief Set of used array names for this state.  Used to avoid collisions.
   std::set<std::string> arrayNames;
 
-  /// @id Unique id for that state
+  /*** Added for Heap KLEE ***/
   
+  /// @id Unique id for that state
   unsigned int id;
   unsigned int last_heap_state_id;
   unsigned int last_sym_state_id;

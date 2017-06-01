@@ -50,10 +50,33 @@ namespace klee {
     ///
     /// \invariant forall o in objects, o->copyOnWriteOwner <= cowKey
     MemoryMap objects;
+
+    // @brief Number of local objects
+    unsigned int local_obj_nbr;
+    unsigned int global_obj_nbr;
+    unsigned int symbolic_obj_nbr;
+    unsigned int fixed_obj_nbr;
     
   public:
-    AddressSpace() : cowKey(1) {}
-    AddressSpace(const AddressSpace &b) : cowKey(++b.cowKey), objects(b.objects) { }
+    AddressSpace() :
+      cowKey(1),
+      local_obj_nbr(0),
+      global_obj_nbr(0),
+      symbolic_obj_nbr(0),
+      fixed_obj_nbr(0)
+    {
+    }
+    
+    AddressSpace(const AddressSpace &b) :
+      cowKey(++b.cowKey),
+      objects(b.objects),
+      local_obj_nbr(b.local_obj_nbr),
+      global_obj_nbr(b.global_obj_nbr),
+      symbolic_obj_nbr(b.symbolic_obj_nbr),
+      fixed_obj_nbr(b.fixed_obj_nbr)
+    {
+    }
+    
     ~AddressSpace() {}
 
     /// Resolve address to an ObjectPair in result.

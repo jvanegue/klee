@@ -147,7 +147,7 @@ ExecutionState::ExecutionState(const ExecutionState& state):
 std::string	ExecutionState::parentFunction()
 {
   std::string unk("unknown");
-  Instruction *i = pc->inst;
+  Instruction *i = (prevPC && prevPC->inst ? prevPC->inst : NULL);
   if (i == NULL)
     return unk;
   Function *f = i->getParent()->getParent();
