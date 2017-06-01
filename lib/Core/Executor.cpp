@@ -591,6 +591,10 @@ void Executor::doDumpViolationState(ExecutionState& state, std::string label)
   StringPair fpair = std::make_pair(orig_state_name, state_name);
   if (HeapEdges.count(fpair) == 0)
     HeapEdges[fpair] = label;
+
+  (*debugHeapFile) << "\n **** NOW PRINTING CONSTRAINTS AT VIOLATON STATE:\n";
+  state.constraints.print(*debugHeapFile);
+  (*debugHeapFile) << "\n **** END PRINTING CONSTRAINTS AT VIOLATON STATE\n";
 }
 
 

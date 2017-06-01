@@ -64,6 +64,13 @@ public:
   bool operator==(const ConstraintManager &other) const {
     return constraints == other.constraints;
   }
+
+  void print(llvm::raw_ostream &os) const {
+    for (const_iterator it = constraints.begin(); it != constraints.end(); ++it)
+      {    
+	(*it)->print(os);
+      }
+  }  
   
 private:
   std::vector< ref<Expr> > constraints;
