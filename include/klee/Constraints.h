@@ -66,9 +66,13 @@ public:
   }
 
   void print(llvm::raw_ostream &os) const {
+    unsigned int cur = 1;
     for (const_iterator it = constraints.begin(); it != constraints.end(); ++it)
-      {    
+      {
+	os << "** Constraint " << cur << ":\n";
 	(*it)->print(os);
+	os << "\n";
+	cur++;
       }
   }  
   
