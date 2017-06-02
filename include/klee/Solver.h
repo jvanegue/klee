@@ -190,14 +190,14 @@ namespace klee {
     /// getRange - Compute a tight range of possible values for a given
     /// expression.
     ///
-    /// \return - A pair with (min, max) values for the expression.
+    /// \return - A pair with (min, max) values for the expression. Timeout possibly turns true.
     ///
     /// \post(mustBeTrue(min <= e <= max) && 
     ///       mayBeTrue(min == e) &&
     ///       mayBeTrue(max == e))
     //
     // FIXME: This should go into a helper class, and should handle failure.
-    virtual std::pair< ref<Expr>, ref<Expr> > getRange(const Query&);
+    virtual std::pair< ref<Expr>, ref<Expr> > getRange(const Query&, bool& timeout);
     
     virtual char *getConstraintLog(const Query& query);
     virtual void setCoreSolverTimeout(double timeout);

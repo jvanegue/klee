@@ -1,6 +1,6 @@
 SRC = heap2.c 
 OBJ = $(SRC:.c=.bc)
-CLG = clang
+CLG = clang-3.4
 CFLAGS = -I../../include -O0
 
 all: clean comp run
