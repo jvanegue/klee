@@ -81,6 +81,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -161,8 +162,8 @@ namespace {
                                            "inst_id]"),
           clEnumValN(FILE_COMPACT, "compact:file",
                      "Log all instructions to file instructions.txt in format "
-                     "[inst_id]"),
-          clEnumValEnd),
+                     "[inst_id]")
+          KLEE_LLVM_CL_VAL_END),
       llvm::cl::CommaSeparated);
 #ifdef HAVE_ZLIB_H
   cl::opt<bool> DebugCompressInstructions(
@@ -293,8 +294,8 @@ namespace {
 		    clEnumValN(Executor::ReadOnly, "ReadOnly", "Write to read-only memory"),
 		    clEnumValN(Executor::ReportError, "ReportError", "klee_report_error called"),
 		    clEnumValN(Executor::User, "User", "Wrong klee_* functions invocation"),
-		    clEnumValN(Executor::Unhandled, "Unhandled", "Unhandled instruction hit"),
-		    clEnumValEnd),
+		    clEnumValN(Executor::Unhandled, "Unhandled", "Unhandled instruction hit")
+		    KLEE_LLVM_CL_VAL_END),
 		  cl::ZeroOrMore);
 
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
@@ -415,7 +416,13 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     if (!DebugCompressInstructions) {
 #endif
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+    std::error_code ec;
+    debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ec,
+                                             llvm::sys::fs::OpenFlags::F_Text);
+    if (ec)
+	    ErrorInfo = ec.message();
+#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
     debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo,
                                              llvm::sys::fs::OpenFlags::F_Text);
     debugHeapFile = new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo,
@@ -1457,7 +1464,7 @@ void Executor::executeCall(ExecutionState &state,
         return;
 
       // FIXME: This is really specific to the architecture, not the pointer
-      // size. This happens to work fir x86-32 and x86-64, however.
+      // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
         executeMemoryOperation(state, true, arguments[0], 
@@ -1465,7 +1472,7 @@ void Executor::executeCall(ExecutionState &state,
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
 
-        // X86-64 has quite complicated calling convention. However,
+        // x86-64 has quite complicated calling convention. However,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
         executeMemoryOperation(state, true, arguments[0],
@@ -1489,7 +1496,7 @@ void Executor::executeCall(ExecutionState &state,
       // va_end is a noop for the interpreter.
       //
       // FIXME: We should validate that the target didn't do something bad
-      // with vaeend, however (like call it twice).
+      // with va_end, however (like call it twice).
       break;
         
     case Intrinsic::vacopy:
@@ -1663,9 +1670,13 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
 
   while (true) {
     if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+      if (!Visited.insert(gv).second)
+        return 0;
+#else
       if (!Visited.insert(gv))
         return 0;
-
+#endif
       std::string alias = state.getFnAlias(gv->getName());
       if (alias != "") {
         llvm::Module* currModule = kmodule->module;
@@ -3424,7 +3435,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   
   if (NoExternals && !okExternals.count(function->getName())) {
-    klee_warning("Calling not-OK external function : %s\n",
+    klee_warning("Disallowed call to external function: %s\n",
                function->getName().str().c_str());
     terminateStateOnError(state, "externals disallowed", User);
     return;
@@ -3473,14 +3484,14 @@ void Executor::callExternalFunction(ExecutionState &state,
       if (i != arguments.size()-1)
 	os << ", ";
     }
-    os << ")";
+    os << ") at ";
+    state.pc->printFileLine(os);
     
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
     else
       klee_warning_once(function, "%s", os.str().c_str());
   }
-  
   bool success = externalDispatcher->executeCall(function, target->inst, args);
   if (!success) {
     terminateStateOnError(state, "failed external call: " + function->getName(),

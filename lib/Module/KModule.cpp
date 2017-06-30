@@ -47,7 +47,7 @@
 #include "llvm/IR/CallSite.h"
 #endif
 
-#include "llvm/PassManager.h"
+#include "klee/Internal/Module/LLVMPassManager.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -92,8 +92,8 @@ namespace {
                         clEnumValN(eSwitchTypeLLVM, "llvm", 
                                    "lower using LLVM"),
                         clEnumValN(eSwitchTypeInternal, "internal", 
-                                   "execute switch internally"),
-                        clEnumValEnd),
+                                   "execute switch internally")
+                        KLEE_LLVM_CL_VAL_END),
              cl::init(eSwitchTypeInternal));
   
   cl::opt<bool>
@@ -158,8 +158,14 @@ static Function *getStubFunctionForCtorList(Module *m,
   if (arr) {
     for (unsigned i=0; i<arr->getNumOperands(); i++) {
       ConstantStruct *cs = cast<ConstantStruct>(arr->getOperand(i));
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
+      // There is a third *optional* element in global_ctor elements (``i8
+      // @data``).
+      assert((cs->getNumOperands() == 2 || cs->getNumOperands() == 3) &&
+             "unexpected element in ctor initializer list");
+#else
       assert(cs->getNumOperands()==2 && "unexpected element in ctor initializer list");
-      
+#endif
       Constant *fp = cs->getOperand(1);      
       if (!fp->isNullValue()) {
         if (llvm::ConstantExpr *ce = dyn_cast<llvm::ConstantExpr>(fp))
@@ -299,7 +305,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // invariant transformations that we will end up doing later so that
   // optimize is seeing what is as close as possible to the final
   // module.
-  PassManager pm;
+  LegacyLLVMPassManagerTy pm;
   pm.add(new RaiseAsmPass());
   if (opts.CheckDivZero) pm.add(new DivCheckPass());
   if (opts.CheckOvershift) pm.add(new OvershiftCheckPass());
@@ -367,7 +373,7 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // linked in something with intrinsics but any external calls are
   // going to be unresolved. We really need to handle the intrinsics
   // directly I think?
-  PassManager pm3;
+  LegacyLLVMPassManagerTy pm3;
   pm3.add(createCFGSimplificationPass());
   switch(SwitchType) {
   case eSwitchTypeInternal: break;
@@ -513,8 +519,13 @@ static int getOperandNum(Value *v,
     return registerMap[inst];
   } else if (Argument *a = dyn_cast<Argument>(v)) {
     return a->getArgNo();
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+    // Metadata is no longer a Value
+  } else if (isa<BasicBlock>(v) || isa<InlineAsm>(v)) {
+#else
   } else if (isa<BasicBlock>(v) || isa<InlineAsm>(v) ||
              isa<MDNode>(v)) {
+#endif
     return -1;
   } else {
     assert(isa<Constant>(v));
