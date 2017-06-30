@@ -64,7 +64,7 @@ namespace klee {
                           std::vector< std::vector<unsigned char> > &result);
 
     std::pair< ref<Expr>, ref<Expr> >
-    getRange(const ExecutionState&, ref<Expr> query);
+    getRange(const ExecutionState&, ref<Expr> query, bool& timedout);
   };
 
 }

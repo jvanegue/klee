@@ -9,22 +9,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "klee/Config/Version.h"
 #include "klee/ExecutionState.h"
 #include "klee/Expr.h"
-#include "klee/Interpreter.h"
-#include "klee/Statistics.h"
-#include "klee/Config/Version.h"
 #include "klee/Internal/ADT/KTest.h"
 #include "klee/Internal/ADT/TreeStream.h"
 #include "klee/Internal/Support/Debug.h"
-#include "klee/Internal/Support/ModuleUtil.h"
-#include "klee/Internal/System/Time.h"
-#include "klee/Internal/Support/PrintVersion.h"
 #include "klee/Internal/Support/ErrorHandling.h"
+#include "klee/Internal/Support/FileHandling.h"
+#include "klee/Internal/Support/ModuleUtil.h"
+#include "klee/Internal/Support/PrintVersion.h"
+#include "klee/Internal/System/Time.h"
+#include "klee/Interpreter.h"
+#include "klee/Statistics.h"
 
 #if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
@@ -32,7 +32,6 @@
 #include "llvm/IR/LLVMContext.h"
 #else
 #include "llvm/Constants.h"
-#include "llvm/Module.h"
 #include "llvm/Type.h"
 #include "llvm/InstrTypes.h"
 #include "llvm/Instruction.h"
@@ -131,7 +130,7 @@ namespace {
                 cl::desc("Write .sym.path files for each test case"));
 
   cl::opt<bool>
-  ExitOnError("exit-on-error",
+  OptExitOnError("exit-on-error",
               cl::desc("Exit if errors occur"));
 
 
@@ -144,8 +143,8 @@ namespace {
        cl::desc("Choose libc version (none by default)."),
        cl::values(clEnumValN(NoLibc, "none", "Don't link in a libc"),
                   clEnumValN(KleeLibc, "klee", "Link in klee libc"),
-		  clEnumValN(UcLibc, "uclibc", "Link in uclibc (adapted for klee)"),
-		  clEnumValEnd),
+		  clEnumValN(UcLibc, "uclibc", "Link in uclibc (adapted for klee)")
+		  KLEE_LLVM_CL_VAL_END),
        cl::init(NoLibc));
 
 
@@ -385,22 +384,14 @@ llvm::raw_fd_ostream *KleeHandler::openOutputFile(const std::string &filename) {
   llvm::raw_fd_ostream *f;
   std::string Error;
   std::string path = getOutputFilename(filename);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3,5)
-  f = new llvm::raw_fd_ostream(path.c_str(), Error, llvm::sys::fs::F_None);
-#elif LLVM_VERSION_CODE >= LLVM_VERSION(3,4)
-  f = new llvm::raw_fd_ostream(path.c_str(), Error, llvm::sys::fs::F_Binary);
-#else
-  f = new llvm::raw_fd_ostream(path.c_str(), Error, llvm::raw_fd_ostream::F_Binary);
-#endif
+  f = klee_open_output_file(path, Error);
   if (!Error.empty()) {
     klee_warning("error opening file \"%s\".  KLEE may have run out of file "
-               "descriptors: try to increase the maximum number of open file "
-               "descriptors by using ulimit (%s).",
-               filename.c_str(), Error.c_str());
-    delete f;
-    f = NULL;
+                 "descriptors: try to increase the maximum number of open file "
+                 "descriptors by using ulimit (%s).",
+                 path.c_str(), Error.c_str());
+    return NULL;
   }
-
   return f;
 }
 
@@ -420,7 +411,7 @@ llvm::raw_fd_ostream *KleeHandler::openTestFile(const std::string &suffix,
 void KleeHandler::processTestCase(const ExecutionState &state,
                                   const char *errorMessage,
                                   const char *errorSuffix) {
-  if (errorMessage && ExitOnError) {
+  if (errorMessage && OptExitOnError) {
     m_interpreter->prepareForEarlyExit();
     klee_error("EXITING ON ERROR:\n%s\n", errorMessage);
   }
@@ -613,7 +604,7 @@ std::string KleeHandler::getRunTimeLibraryPath(const char *argv0) {
   {
     KLEE_DEBUG_WITH_TYPE("klee_runtime", llvm::dbgs() <<
                          "Using installed KLEE library runtime: ");
-    libDir = toolRoot.str().substr(0, 
+    libDir = toolRoot.str().substr(0,
                toolRoot.str().size() - strlen( KLEE_INSTALL_BIN_DIR ));
     llvm::sys::path::append(libDir, KLEE_INSTALL_RUNTIME_DIR);
   }
@@ -1038,9 +1029,14 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
   SmallString<128> uclibcBCA(libDir);
   llvm::sys::path::append(uclibcBCA, KLEE_UCLIBC_BCA_NAME);
 
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+  Twine uclibcBCA_twine(uclibcBCA.c_str());
+  if (!llvm::sys::fs::exists(uclibcBCA_twine))
+#else
   bool uclibcExists=false;
   llvm::sys::fs::exists(uclibcBCA.c_str(), uclibcExists);
   if (!uclibcExists)
+#endif
     klee_error("Cannot find klee-uclibc : %s", uclibcBCA.c_str());
 
   Function *f;
@@ -1237,52 +1233,13 @@ int main(int argc, char **argv, char **envp) {
   sys::SetInterruptFunction(interrupt_handle);
 
   // Load the bytecode...
-  std::string ErrorMsg;
+  std::string errorMsg;
   LLVMContext ctx;
-  Module *mainModule = 0;
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-  OwningPtr<MemoryBuffer> BufferPtr;
-  error_code ec=MemoryBuffer::getFileOrSTDIN(InputFile.c_str(), BufferPtr);
-  if (ec) {
+  Module *mainModule = klee::loadModule(ctx, InputFile, errorMsg);
+  if (!mainModule) {
     klee_error("error loading program '%s': %s", InputFile.c_str(),
-               ec.message().c_str());
+               errorMsg.c_str());
   }
-
-  mainModule = getLazyBitcodeModule(BufferPtr.get(), ctx, &ErrorMsg);
-
-  if (mainModule) {
-    if (mainModule->MaterializeAllPermanently(&ErrorMsg)) {
-      delete mainModule;
-      mainModule = 0;
-    }
-  }
-  if (!mainModule)
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               ErrorMsg.c_str());
-#else
-  auto Buffer = MemoryBuffer::getFileOrSTDIN(InputFile.c_str());
-  if (!Buffer)
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               Buffer.getError().message().c_str());
-
-  auto mainModuleOrError = getLazyBitcodeModule(Buffer->get(), ctx);
-
-  if (!mainModuleOrError) {
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               mainModuleOrError.getError().message().c_str());
-  }
-  else {
-    // The module has taken ownership of the MemoryBuffer so release it
-    // from the std::unique_ptr
-    Buffer->release();
-  }
-
-  mainModule = *mainModuleOrError;
-  if (auto ec = mainModule->materializeAllPermanently()) {
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               ec.message().c_str());
-  }
-#endif
 
   if (WithPOSIXRuntime) {
     int r = initEnv(mainModule);
@@ -1576,12 +1533,6 @@ int main(int argc, char **argv, char **envp) {
 
   handler->getInfoStream() << stats.str();
 
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
-  // FIXME: This really doesn't look right
-  // This is preventing the module from being
-  // deleted automatically
-  BufferPtr.take();
-#endif
   delete handler;
 
   return 0;

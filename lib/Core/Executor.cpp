@@ -81,6 +81,7 @@
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -161,8 +162,8 @@ namespace {
                                            "inst_id]"),
           clEnumValN(FILE_COMPACT, "compact:file",
                      "Log all instructions to file instructions.txt in format "
-                     "[inst_id]"),
-          clEnumValEnd),
+                     "[inst_id]")
+          KLEE_LLVM_CL_VAL_END),
       llvm::cl::CommaSeparated);
 #ifdef HAVE_ZLIB_H
   cl::opt<bool> DebugCompressInstructions(
@@ -293,8 +294,8 @@ namespace {
 		    clEnumValN(Executor::ReadOnly, "ReadOnly", "Write to read-only memory"),
 		    clEnumValN(Executor::ReportError, "ReportError", "klee_report_error called"),
 		    clEnumValN(Executor::User, "User", "Wrong klee_* functions invocation"),
-		    clEnumValN(Executor::Unhandled, "Unhandled", "Unhandled instruction hit"),
-		    clEnumValEnd),
+		    clEnumValN(Executor::Unhandled, "Unhandled", "Unhandled instruction hit")
+		    KLEE_LLVM_CL_VAL_END),
 		  cl::ZeroOrMore);
 
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
@@ -330,7 +331,7 @@ namespace {
             cl::init(true));
 
   cl::opt<bool>
-  SymbolicStubs("symbolic-stubs",
+  SymStubs("symbolic-stubs",
             cl::desc("Enable symbolic propagation through stubs (like strlen or atoi) default = on"),
             cl::init(true));
 
@@ -359,6 +360,14 @@ const char *Executor::TerminateReasonNames[] = {
   [ User ] = "user",
   [ Unhandled ] = "xxx",
 };
+
+
+/* HKLEE: Defining a list of symbolic stubs that will propagate symbolicness by default */
+void	Executor::SymbolicStubsRegister() {
+  symStubs["atoi"] = 1;
+  symStubs["strlen"] = 1;
+  symStubs["rand"] = 0;
+}
 
 
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
@@ -407,7 +416,13 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     if (!DebugCompressInstructions) {
 #endif
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+    std::error_code ec;
+    debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ec,
+                                             llvm::sys::fs::OpenFlags::F_Text);
+    if (ec)
+	    ErrorInfo = ec.message();
+#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
     debugInstFile = new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo,
                                              llvm::sys::fs::OpenFlags::F_Text);
     debugHeapFile = new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo,
@@ -430,7 +445,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       klee_error("Could not open file %s : %s", debug_file_name.c_str(),
                  ErrorInfo.c_str());
     }
-    //}
+
+    SymbolicStubsRegister();    
 }
 
 
@@ -582,9 +598,10 @@ void Executor::doDumpViolationState(ExecutionState& state, std::string label)
   std::string fixed_objnum = ToString(state.addressSpace.fixed_obj_nbr);
   std::string sym_objnum = ToString(state.addressSpace.symbolic_obj_nbr);
   std::string total_objnum = ToString(state.ObjectNbr());
-  std::string state_objnum = "(" + total_objnum + "=(" + global_objnum + "g," + local_objnum + "l)," + sym_objnum + "s," + fixed_objnum + "f)";
+  std::string state_objnum = "(" + total_objnum + "=(" + global_objnum + "G,"
+    + local_objnum + "L)," + sym_objnum + "S," + fixed_objnum + "F)";
   
-  std::string state_constnum = ToString(state.constraints.size()) + "c";
+  std::string state_constnum = ToString(state.constraints.size()) + "C";
   std::string state_label = state_parent + "," + state_objnum + "," + state_constnum;
   HeapStates[state_name] = std::make_pair(true,state_label);
   
@@ -1447,7 +1464,7 @@ void Executor::executeCall(ExecutionState &state,
         return;
 
       // FIXME: This is really specific to the architecture, not the pointer
-      // size. This happens to work fir x86-32 and x86-64, however.
+      // size. This happens to work for x86-32 and x86-64, however.
       Expr::Width WordSize = Context::get().getPointerWidth();
       if (WordSize == Expr::Int32) {
         executeMemoryOperation(state, true, arguments[0], 
@@ -1455,7 +1472,7 @@ void Executor::executeCall(ExecutionState &state,
       } else {
         assert(WordSize == Expr::Int64 && "Unknown word size!");
 
-        // X86-64 has quite complicated calling convention. However,
+        // x86-64 has quite complicated calling convention. However,
         // instead of implementing it, we can do a simple hack: just
         // make a function believe that all varargs are on stack.
         executeMemoryOperation(state, true, arguments[0],
@@ -1479,7 +1496,7 @@ void Executor::executeCall(ExecutionState &state,
       // va_end is a noop for the interpreter.
       //
       // FIXME: We should validate that the target didn't do something bad
-      // with vaeend, however (like call it twice).
+      // with va_end, however (like call it twice).
       break;
         
     case Intrinsic::vacopy:
@@ -1496,10 +1513,12 @@ void Executor::executeCall(ExecutionState &state,
   } else {
 
 
-    // XXX: Just debug
-    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+    // HKLEE: Just debug
+    if (f && (symStubs.find(f->getName()) != symStubs.end()))
       {
-	(*debugHeapFile) << "1 STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
+	int idx = symStubs[f->getName()];
+	int arg = (idx == 0 ? 1 : state.stack.back().argAttrs[idx]);
+	(*debugHeapFile) << "1 " << f->getName() << " argAttrs[" << idx << "]  = " << arg << " framenbr = " << state.stack.size() << "\n";	
       }
     
     // FIXME: I'm not really happy about this reliance on prevPC but it is ok, I
@@ -1514,9 +1533,9 @@ void Executor::executeCall(ExecutionState &state,
       statsTracker->framePushed(state, &state.stack[state.stack.size()-2]);
 
     // XXX: HEAP KLEE debug
-    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+    if (f && (symStubs.find(f->getName()) != symStubs.end()))
       {
-	(*debugHeapFile) << "2 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";
+	(*debugHeapFile) << "2 " << f->getName() << " framenbr = " << state.stack.size() << "\n";
 	//llvm::errs() << "2 STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
       }
     
@@ -1609,9 +1628,9 @@ void Executor::executeCall(ExecutionState &state,
   }
 
   // XXX: Just debug
-  if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+  if (f && (symStubs.find(f->getName()) != symStubs.end()))
     {
-      (*debugHeapFile) << "3 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";	
+      (*debugHeapFile) << "3 " << f->getName() << " framenbr = " << state.stack.size() << "\n";	
     }
   
 }
@@ -1651,9 +1670,13 @@ Function* Executor::getTargetFunction(Value *calledVal, ExecutionState &state) {
 
   while (true) {
     if (GlobalValue *gv = dyn_cast<GlobalValue>(c)) {
+#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 6)
+      if (!Visited.insert(gv).second)
+        return 0;
+#else
       if (!Visited.insert(gv))
         return 0;
-
+#endif
       std::string alias = state.getFnAlias(gv->getName());
       if (alias != "") {
         llvm::Module* currModule = kmodule->module;
@@ -1760,9 +1783,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       static unsigned id;
       const Array *array = arrayCache.CreateArray("rrws_arr" + llvm::utostr(++id), Expr::getMinBytesForWidth(e->getWidth()));
       ref<Expr> sym_result = Expr::createTempRead(array, e->getWidth());
+
+      bool isSymbolicStub = (symStubs.find(str.c_str()) != symStubs.end());
       
-      if (!strcmp(str.c_str(), "strlen") || !strcmp(str.c_str(), "atoi"))
+      if (isSymbolicStub)
 	{
+	  int argIndex = symStubs[str.c_str()];
+	  
 	  StackFrame &sf = state.stack.back();
 	  std::vector<bool> argAttrs = sf.argAttrs;
 	  
@@ -1772,13 +1799,20 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  KFunction *kf = sf.kf;
 	  std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
 	  (*debugHeapFile) << "StackFrame Function = " << funcname << " framenbr = " << state.stack.size() << "\n";
+
+	  if (SymStubs)
+	    {
+	      if (argIndex == 0 || argAttrs[argIndex] == 1)
+		ret_is_symbolic = true;
+	      else
+		ret_is_symbolic = false;
+	    }
+	  else
+	    ret_is_symbolic = false;
 	  
-	  ret_is_symbolic = (argAttrs[0] && SymbolicStubs);
-	  (*debugHeapFile) << "RETURN of STRLEN/ATOI is symbolic = " << ret_is_symbolic
-		           << " argAttrs[0]  = " << argAttrs[0]
-	    // << " argAttrs2[0] = " << argAttrs2[0]
-		           << " SymStubOpt: " << SymbolicStubs
-		           << "\n";
+	  (*debugHeapFile) << "RETURN of " << str.c_str() << " is symbolic: " << ret_is_symbolic
+		           << " argAttrs[Idx]  = " << argAttrs[argIndex]
+		           << " SymStubOpt: " << SymStubs << "\n";
 	}
       
 	
@@ -2082,11 +2116,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
     std::vector<bool> argAttrs;
     
-    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+    if (f && (symStubs.find(f->getName()) != symStubs.end()))
     {
-      (*debugHeapFile) << "Executor::executeInstruction()::Call: calling 'strlen/atoi'\n";
+      std::string funcName = f->getName();
+      (*debugHeapFile) << "Executor::executeInstruction()::Call: calling " << funcName << "\n";
       unsigned numFormals = f->arg_size();
-      llvm::Function::arg_iterator arg_it = f->arg_begin(); // This iterator gives us _static_ information about function arguments, e.g. its type
+
+      // This iterator gives us _static_ information about function arguments, e.g. its type
+      llvm::Function::arg_iterator arg_it = f->arg_begin(); 
       for (unsigned i=0; i<numFormals; ++i) 
       {
         llvm::Value *arg = arg_it;
@@ -2107,7 +2144,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
             solver->setTimeout(coreSolverTimeout);
             success = state.addressSpace.resolveOne(cast<ConstantExpr>(address), op);
             solver->setTimeout(0);
-	    assert(success && "[-] Failed to resolve memobject for strlen/atoi argument");
+	    assert(success && "[-] Failed to resolve memobject for Symbolic Stub argument");
             //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
             const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
             ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 8-bit element.
@@ -2115,12 +2152,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 	    if (first_byte_is_const)
 	      {
-		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is constant!\n";
+		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of " << funcName << " param is constant!\n";
 		argAttrs.push_back(false);
 	      }
 	    else
 	      {
-		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of strlen/atoi string is symbolic!\n";
+		(*debugHeapFile) << "Executor::executeInstruction()::Call: The first byte of " << funcName << " param is symbolic!\n";
 		argAttrs.push_back(true);
 	      }
 	  }
@@ -2133,9 +2170,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     sf.argAttrs = argAttrs;
 
     // XXX: Just debug
-    if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+    if (f && (symStubs.find(f->getName()) != symStubs.end()))
       {
-	(*debugHeapFile) << "STRLEN/ATOI "  << " argAttrs[0]  = " << state.stack.back().argAttrs[0] << " framenbr = " << state.stack.size() << "\n";	
+	int idx = symStubs[f->getName()];
+	int arg = (idx == 0 ? 1 : state.stack.back().argAttrs[idx]);
+	
+	(*debugHeapFile) << f->getName() << " argAttrs[" << idx << "]  = " << arg << " framenbr = " << state.stack.size() << "\n";	
 	KFunction *kf = sf.kf;
 	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
 	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
@@ -2184,16 +2224,16 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         }
       }
       
-      if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      if (f && (symStubs.find(f->getName()) != symStubs.end()))
 	{
-	  (*debugHeapFile) << "Now Going to executeCall on strlen/atoi\n";
+	  (*debugHeapFile) << "Now Going to executeCall for symbolic stub " << f->getName() << "\n";
 	}
       
       executeCall(state, ki, f, arguments);
 
-     if (f && (f->getName() == "strlen" || f->getName() == "atoi"))
+      if (f && (symStubs.find(f->getName()) != symStubs.end()))
       {
-	(*debugHeapFile) << "4 STRLEN/ATOI "  << " framenbr = " << state.stack.size() << "\n";	
+	(*debugHeapFile) << "4 " << f->getName() << " framenbr = " << state.stack.size() << "\n";	
 	KFunction *kf = sf.kf;
 	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
 	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
@@ -3186,7 +3226,16 @@ std::string Executor::getAddressInfo(ExecutionState &state,
     (void) success;
     example = value->getZExtValue();
     info << "\texample: " << example << "\n";
-    std::pair< ref<Expr>, ref<Expr> > res = solver->getRange(state, address);
+
+
+    // HKLEE: added.  This function is only used at state termination so its OK if we fail
+    solver->setTimeout(coreSolverTimeout);
+    bool timedout;
+    std::pair< ref<Expr>, ref<Expr> > res = solver->getRange(state, address, timedout);
+    solver->setTimeout(0);
+    if (timedout)
+      return (std::string("unknown: timed out"));
+    
     info << "\trange: [" << res.first << ", " << res.second <<"]\n";
   }
   
@@ -3386,7 +3435,7 @@ void Executor::callExternalFunction(ExecutionState &state,
     return;
   
   if (NoExternals && !okExternals.count(function->getName())) {
-    klee_warning("Calling not-OK external function : %s\n",
+    klee_warning("Disallowed call to external function: %s\n",
                function->getName().str().c_str());
     terminateStateOnError(state, "externals disallowed", User);
     return;
@@ -3435,14 +3484,14 @@ void Executor::callExternalFunction(ExecutionState &state,
       if (i != arguments.size()-1)
 	os << ", ";
     }
-    os << ")";
+    os << ") at ";
+    state.pc->printFileLine(os);
     
     if (AllExternalWarnings)
       klee_warning("%s", os.str().c_str());
     else
       klee_warning_once(function, "%s", os.str().c_str());
   }
-  
   bool success = externalDispatcher->executeCall(function, target->inst, args);
   if (!success) {
     terminateStateOnError(state, "failed external call: " + function->getName(),
@@ -3514,7 +3563,8 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
    if (isSymbolic) state.addressSpace.symbolic_obj_nbr++;
    if (isFixed) state.addressSpace.fixed_obj_nbr++;
    if (isGlobal) state.addressSpace.global_obj_nbr++;
-   if (isLocal) state.addressSpace.local_obj_nbr++;     
+   //if (isLocal) state.addressSpace.local_obj_nbr++;
+   if (SaidIsLocal) state.addressSpace.local_obj_nbr++;     
    
   // Its possible that multiple bindings of the same mo in the state
   // will put multiple copies on this list, but it doesn't really
@@ -3626,7 +3676,10 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
  }
  
 // JV: used to remember edges in the state space on fork
- void Executor::trackEdges(ExecutionState& orig_state, StatePair& spair, int edge_type, std::string edge_label)
+ void Executor::trackEdges(ExecutionState& orig_state,
+			   StatePair& spair,
+			   int edge_type,
+			   std::string edge_label)
  {
    std::string orig_sym_statename  = ToString(orig_state.last_sym_state_id);
    std::string orig_heap_statename  = ToString(orig_state.last_heap_state_id);
@@ -3678,11 +3731,13 @@ uint64_t Executor::getLowerBound(ExecutionState &state, ref<Expr> size)
 	   std::string lfixed_objnum = ToString(spair.first->addressSpace.fixed_obj_nbr);
 	   std::string lsym_objnum = ToString(spair.first->addressSpace.symbolic_obj_nbr);
 	   std::string ltotal_objnum = ToString(spair.first->ObjectNbr());
-	   std::string lstate_objnum = "(" + ltotal_objnum + "=(" +
-	     lglobal_objnum + "g," + llocal_objnum + "l)," + lsym_objnum + "s," + lfixed_objnum + "f)";
+	   std::string lstate_objnum = "(" + ltotal_objnum + "=(" + lglobal_objnum + "G," +
+	     llocal_objnum + "L)," + lsym_objnum + "S," + lfixed_objnum + "F)";
 	   
-	   std::string left_state_constnum = ToString(spair.first->constraints.size()) + "c";
-	   std::string left_state_label = left_state_parent + "," + lstate_objnum + "," + left_state_constnum;
+	   std::string left_state_constnum = ToString(spair.first->constraints.size()) + "C";
+	   std::string left_state_label = left_state_parent + "," + lstate_objnum +
+	     "," + left_state_constnum;
+	   
 	   HeapStates[left_state_name] = std::make_pair(false,left_state_label);
 	   
 	   StringPair fpair = std::make_pair(orig_heap_statename, left_state_name);
@@ -3791,8 +3846,9 @@ void Executor::executeAlloc(ExecutionState &state,
 
     /* IVANP: We could have used 'getRange()' as below but it seems slower then
      * our custom binary search <getLowerBound()>*/
+    bool timedout;
     solver->setTimeout(coreSolverTimeout);
-    std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size);
+    std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size, timedout);
     if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
       lower_bound = lowerbound_const_exp->getZExtValue();
     solver->setTimeout(0);
@@ -4076,11 +4132,14 @@ ObjectState* Executor::resizeDynamicObject(ExecutionState &state, ObjectPair &ol
   const MemoryObject *old_mo = old_op.first;
   const ObjectState *old_os = old_op.second;
   bool isLocal = false;
-
+  bool timedout = false;
+  
   /* Find the lower bound for the object's symolic size */
   uint64_t lower_bound = INT_MAX;
   solver->setTimeout(coreSolverTimeout);
-  std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, old_mo->symbolic_size);
+  std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state,
+							     old_mo->symbolic_size,
+							     timedout);
   if (ConstantExpr *lowerbound_const_exp = dyn_cast<ConstantExpr>(range.first)) 
     lower_bound = lowerbound_const_exp->getZExtValue();
   solver->setTimeout(0);
@@ -4211,9 +4270,10 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   label += (mo->isLocal ? "Local" : (mo->isGlobal ? "Global" : (mo->isFixed ? "Fixed" : "Unk")));
   label += " OOB";
   doDumpViolationState(state, label);
+
+  std::string straddr = getAddressInfo(state, address);
   
-  terminateStateOnError(state, "memory error: out of bound pointer", Ptr,
-                        NULL, getAddressInfo(state, address));
+  terminateStateOnError(state, "memory error: out of bound pointer", Ptr, NULL, straddr);
   return;
 }
 

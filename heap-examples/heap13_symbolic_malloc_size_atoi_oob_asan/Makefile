@@ -1,13 +1,16 @@
 SRC = heap13.c 
 OBJ = $(SRC:.c=.bc)
 CLG = clang-3.4
-EXE = test13
+EXE = heap13
 CFLAGS = -fsanitize=address -fno-omit-frame-pointer
+LDFLAGS = -fsanitize=address
+LD    = clang-3.4
 
 all: clean comp run
 
 comp:
 	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC)
+	$(CLG) -g $(CFLAGS) $(SRC) -o $(EXE)
 
 run:
 	klee -track-edges -posix-runtime -libc=uclibc $(OBJ) --sym-args 1 2 10

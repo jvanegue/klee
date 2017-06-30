@@ -533,8 +533,9 @@ void SpecialFunctionHandler::handlePrintRange(ExecutionState &state,
       llvm::errs() << " == " << value;
     } else { 
       llvm::errs() << " ~= " << value;
+      bool timedout;
       std::pair< ref<Expr>, ref<Expr> > res =
-        executor.solver->getRange(state, arguments[1]);
+        executor.solver->getRange(state, arguments[1],  timedout);
       llvm::errs() << " (in [" << res.first << ", " << res.second <<"])";
     }
   }

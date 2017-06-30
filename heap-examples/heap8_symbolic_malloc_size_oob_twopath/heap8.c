@@ -12,11 +12,9 @@ int main(int argc, char *argv[])
   klee_make_symbolic(&malloc_size, sizeof(malloc_size), "malloc_size");
 
   char *a = (char *) malloc(malloc_size);    
+
   if (malloc_size > 10)
-  {
-    //a[16843011] = 0x42;
     a[20] = 0x42;
-  }
   
   return 0;
 }

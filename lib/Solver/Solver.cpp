@@ -107,11 +107,15 @@ Solver::getInitialValues(const Query& query,
   return success;
 }
 
-std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
+std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query, bool& timeout) {
   ref<Expr> e = query.expr;
   Expr::Width width = e->getWidth();
   uint64_t min, max;
 
+  timeout = false;
+  min = 0;
+  max = 0;
+  
   if (width==1) {
     Solver::Validity result;
     if (!evaluate(query, result))
@@ -134,13 +138,17 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
       bool res;
       bool success = 
         mustBeTrue(query.withExpr(
-                     EqExpr::create(LShrExpr::create(e,
-                                                     ConstantExpr::create(mid, 
-                                                                          width)),
-                                    ConstantExpr::create(0, width))),
+		   EqExpr::create(LShrExpr::create(e, ConstantExpr::create(mid, width)),
+                                  ConstantExpr::create(0, width))),
                    res);
 
-      assert(success && "FIXME: Unhandled solver failure");
+      //assert(success && "FIXME: Unhandled solver failure");
+      if (success == false)
+	{
+	  timeout = true;
+	  goto end;
+	}
+      
       (void) success;
 
       if (res) {
@@ -162,7 +170,13 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
                                                                       width))), 
                 res);
 
-    assert(success && "FIXME: Unhandled solver failure");      
+    if (success == false)
+      {
+	timeout = true;
+	goto end;
+      }
+    
+    //assert(success && "FIXME: Unhandled solver failure");      
     (void) success;
 
     if (res) {
@@ -179,7 +193,13 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
                                                                         width))),
                     res);
 
-        assert(success && "FIXME: Unhandled solver failure");      
+	if (success == false)
+	  {
+	    timeout = true;
+	    goto end;
+	  }
+	
+        //assert(success && "FIXME: Unhandled solver failure");      
         (void) success;
 
         if (res) {
@@ -202,8 +222,14 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
                                                   ConstantExpr::create(mid, 
                                                                        width))),
                    res);
-
-      assert(success && "FIXME: Unhandled solver failure");      
+      
+      if (success == false)
+	{
+	  timeout = true;
+	  goto end;
+	}
+      
+      //assert(success && "FIXME: Unhandled solver failure");      
       (void) success;
 
       if (res) {
@@ -216,6 +242,7 @@ std::pair< ref<Expr>, ref<Expr> > Solver::getRange(const Query& query) {
     max = lo;
   }
 
+ end:
   return std::make_pair(ConstantExpr::create(min, width),
                         ConstantExpr::create(max, width));
 }

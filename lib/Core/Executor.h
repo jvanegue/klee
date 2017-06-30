@@ -100,6 +100,7 @@ public:
     virtual void run() = 0;
   };
 
+  typedef std::map<std::string,int>		     SymbolicStubs;
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
   typedef const std::pair<std::string,std::string>   StringPair;
   typedef std::pair<bool,std::string>		     StateDesc;
@@ -128,11 +129,9 @@ public:
     EDGE_HEAP = 2
   };
 
-  
-  
 private:
   static const char *TerminateReasonNames[];
-
+  
   class TimerInfo;
 
   KModule *kmodule;
@@ -157,6 +156,7 @@ private:
   EdgeMap			HeapEdges;
   EdgeMap			SymEdges;
   EdgeMap			ControlEdges;
+  SymbolicStubs			symStubs;
   
   /**********************/
   
@@ -473,7 +473,7 @@ private:
   void doDumpStates();
   void doDumpEdges(); // XXX: HKLEE
   void doDumpViolationState(ExecutionState& state, std::string label);
-
+  void SymbolicStubsRegister();
   
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,

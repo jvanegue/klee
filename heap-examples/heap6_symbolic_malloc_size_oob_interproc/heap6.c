@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 {
   unsigned int malloc_size = rand();
   index_invalid = fct(127);
-  klee_make_symbolic(&malloc_size, sizeof(malloc_size), "malloc_size");
+  //klee_make_symbolic(&malloc_size, sizeof(malloc_size), "malloc_size");
   //klee_assume(index_invalid == 127);
   if (malloc_size != 0)
     {
