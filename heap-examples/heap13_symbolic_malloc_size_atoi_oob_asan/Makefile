@@ -9,7 +9,7 @@ LD    = clang-3.4
 all: clean comp run
 
 comp:
-	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC)
+	$(CLG) -emit-llvm -c -g $(SRC)
 	$(CLG) -g $(CFLAGS) $(SRC) -o $(EXE)
 
 run:

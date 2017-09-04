@@ -92,7 +92,7 @@ void DFSSearcher::update(ExecutionState *current,
 
       assert(ok && "invalid state removed");
     }
-  }
+   }
 }
 
 ///
@@ -173,7 +173,6 @@ RandomSearcher::update(ExecutionState *current,
 }
 
 ///
-
 WeightedRandomSearcher::WeightedRandomSearcher(WeightType _type)
   : states(new DiscretePDF<ExecutionState*>()),
     type(_type) {

@@ -14,6 +14,6 @@ run:
 	dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
 	dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
 	dot -Tpng klee-out-0/hklee-heap.gv > hklee-heap.png
-
+	cp klee-out-0/heapdebug.txt .
 clean:
 	rm -fr *.bc klee-last klee-out* *.png
