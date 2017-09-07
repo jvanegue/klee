@@ -1,0 +1,2 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:560
+/home/jvanegue/klee-uclibc/libc/string/strncmp.c:32

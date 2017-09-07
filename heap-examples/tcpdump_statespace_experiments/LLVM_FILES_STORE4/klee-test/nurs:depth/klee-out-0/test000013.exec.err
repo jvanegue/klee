@@ -1,0 +1,11 @@
+Error: inline assembly is unsupported
+File: /home/jvanegue/klee-uclibc/libc/inet/socketcalls.c
+Line: 362
+assembly.ll line: 173870
+Stack: 
+	#000173870 in socket (family=17, type=3, protocol=768) at /home/jvanegue/klee-uclibc/libc/inet/socketcalls.c:362
+	#100033444 in pcap_can_set_rfmon_linux (handle=284695552)
+	#200024150 in pcap_can_set_rfmon (p=284695552)
+	#300162326 in __user_main (argc=10, argv=124429568)
+	#400175097 in __uClibc_main (argc=10, argv=124429568) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179072 in main (=10, =124429568)

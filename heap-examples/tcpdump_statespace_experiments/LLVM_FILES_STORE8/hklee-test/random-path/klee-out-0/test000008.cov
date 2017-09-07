@@ -1,0 +1,6 @@
+/home/jvanegue/klee-uclibc/libc/misc/ctype/ctype.c:292
+/home/jvanegue/klee-uclibc/libc/string/strcasecmp.c:66
+/home/jvanegue/klee-uclibc/libc/string/strcasecmp.c:67
+/home/jvanegue/klee-uclibc/libc/string/strcasecmp.c:68
+/home/jvanegue/klee-uclibc/libc/string/strcasecmp.c:71
+:0

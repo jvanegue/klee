@@ -1,0 +1,14 @@
+Error: memory error: out of bound pointer
+Stack: 
+	#000016312 in pcap_findalldevs_interfaces (alldevsp=215838760, errbuf=131712000)
+	#100024234 in pcap_findalldevs (alldevsp=215838760, errbuf=131712000)
+	#200022863 in pcap_lookupdev (errbuf=131712000)
+	#300162281 in __user_main (argc=10, argv=150388352)
+	#400175097 in __uClibc_main (argc=10, argv=150388352) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179072 in main (=10, =150388352)
+Info: 
+	address: 163852312
+	next: object at 164152592 of size 38
+		MO392[38] allocated at global:.str94342
+	prev: object at 163758080 of size 3424
+		MO66[3424] allocated at global:ipxsap_db

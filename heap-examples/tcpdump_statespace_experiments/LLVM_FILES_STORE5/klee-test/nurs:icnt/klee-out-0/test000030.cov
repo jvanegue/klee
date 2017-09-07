@@ -1,0 +1,5 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:591
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:624
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:754
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:761
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:768
