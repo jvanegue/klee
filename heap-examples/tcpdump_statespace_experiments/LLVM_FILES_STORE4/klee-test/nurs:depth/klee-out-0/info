@@ -1,0 +1,18 @@
+../../../klee/Release+Asserts/bin/klee --simplify-sym-indices --write-cvcs --write-cov --output-module --max-memory=12000 --disable-inlining --optimize --use-forked-solver --use-cex-cache --libc=uclibc --posix-runtime --allow-external-sym-calls --only-output-states-covering-new --max-sym-array-size=4096 --max-instruction-time=30. --max-time=172000 --watchdog --max-memory-inhibit=false --max-static-fork-pct=1 --max-static-solve-pct=1 --max-static-cpfork-pct=1 --switch-type=internal -search=nurs:depth ./tcpdump.bc --sym-stdout --sym-args 0 2 10 A --sym-files 1 100
+PID: 1796
+Started: 2017-09-04 16:38:36
+BEGIN searcher description
+WeightedRandomSearcher::Depth
+END searcher description
+Finished: 2017-09-06 16:58:22
+Elapsed: 2 days, 00:19:46
+KLEE: done: explored paths = 422083
+KLEE: done: avg. constructs per query = 107
+KLEE: done: total queries = 39500
+KLEE: done: valid queries = 27602
+KLEE: done: invalid queries = 11898
+KLEE: done: query cex = 39500
+
+KLEE: done: total instructions = 66170894
+KLEE: done: completed paths = 422083
+KLEE: done: generated tests = 37

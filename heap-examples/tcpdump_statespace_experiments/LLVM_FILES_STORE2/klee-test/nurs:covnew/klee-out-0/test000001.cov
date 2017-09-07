@@ -1,0 +1,5 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:820
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:827
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:834
+:0
+/home/jvanegue/klee-uclibc/libc/stdio/fprintf.c:19

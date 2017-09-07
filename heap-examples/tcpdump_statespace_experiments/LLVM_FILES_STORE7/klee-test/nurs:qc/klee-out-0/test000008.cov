@@ -1,0 +1,16 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:488
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:517
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:528
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:530
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:547
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:560
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:811
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:812
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:815
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:816
+/home/jvanegue/klee-uclibc/libc/string/strchr.c:20
+/home/jvanegue/klee-uclibc/libc/string/strchr.c:21
+/home/jvanegue/klee-uclibc/libc/string/strchr.c:24
+/home/jvanegue/klee-uclibc/libc/string/strchr.c:27
+/home/jvanegue/klee-uclibc/libc/string/strcmp.c:34
+/home/jvanegue/klee-uclibc/libc/string/strcmp.c:37

@@ -1,0 +1,7 @@
+Error: failed external call: SSLeay_version
+Stack: 
+	#000163138 in print_version ()
+	#100163096 in print_usage ()
+	#200162141 in __user_main (argc=10, argv=125337216)
+	#300175096 in __uClibc_main (argc=10, argv=125337216) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#400179071 in main (=10, =125337216)

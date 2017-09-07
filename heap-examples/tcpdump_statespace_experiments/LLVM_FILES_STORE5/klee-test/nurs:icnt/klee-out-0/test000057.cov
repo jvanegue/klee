@@ -1,0 +1,7 @@
+:0
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:22
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:23
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:27
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:28
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:34
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:37

@@ -1,0 +1,12 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:453
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:473
+:0
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:592
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:607
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:1897
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2240
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2248
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2251
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2254
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2255
+/home/jvanegue/klee-uclibc/libc/misc/time/time.c:2262

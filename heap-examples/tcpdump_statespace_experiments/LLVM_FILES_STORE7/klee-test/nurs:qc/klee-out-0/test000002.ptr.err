@@ -1,0 +1,14 @@
+Error: memory error: out of bound pointer
+Stack: 
+	#000016312 in pcap_findalldevs_interfaces (alldevsp=248504528, errbuf=249890304)
+	#100024234 in pcap_findalldevs (alldevsp=248504528, errbuf=249890304)
+	#200163168 in show_devices_and_exit ()
+	#300162152 in __user_main (argc=10, argv=145514112)
+	#400175097 in __uClibc_main (argc=10, argv=145514112) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179072 in main (=10, =145514112)
+Info: 
+	address: 260894744
+	next: object at 139667382088864 of size 1536
+		MO38[1536] (no allocation info)
+	prev: object at 249890304 of size 256
+		MO35810[256] allocated at show_devices_and_exit():  %ebuf = alloca [256 x i8], align 16

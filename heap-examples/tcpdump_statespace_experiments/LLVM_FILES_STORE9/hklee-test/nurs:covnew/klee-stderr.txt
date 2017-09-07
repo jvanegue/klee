@@ -1,0 +1,368 @@
+KLEE: KLEE: WATCHDOG: watching 11163
+
+KLEE: NOTE: Using klee-uclibc : /home/jvanegue/hklee/Release+Asserts/lib/klee-uclibc.bca
+KLEE: NOTE: Using model: /home/jvanegue/hklee/Release+Asserts/lib/libkleeRuntimePOSIX.bca
+KLEE: output directory is "/home/jvanegue/hklee/heap-examples/LLVM_FILES_STORE9/./klee-out-0"
+KLEE: Using STP solver backend
+KLEE: WARNING ONCE: function "bind" has inline asm
+KLEE: WARNING ONCE: function "getsockopt" has inline asm
+KLEE: WARNING ONCE: function "__libc_recvfrom" has inline asm
+KLEE: WARNING ONCE: function "__libc_recvmsg" has inline asm
+KLEE: WARNING ONCE: function "__libc_sendto" has inline asm
+KLEE: WARNING ONCE: function "setsockopt" has inline asm
+KLEE: WARNING ONCE: function "socket" has inline asm
+KLEE: WARNING ONCE: function "__libc_connect" has inline asm
+KLEE: WARNING: undefined reference to function: EVP_CIPHER_CTX_cleanup
+KLEE: WARNING: undefined reference to function: EVP_CIPHER_iv_length
+KLEE: WARNING: undefined reference to function: EVP_Cipher
+KLEE: WARNING: undefined reference to function: EVP_CipherInit
+KLEE: WARNING: undefined reference to function: EVP_get_cipherbyname
+KLEE: WARNING: undefined reference to function: MD5_Final
+KLEE: WARNING: undefined reference to function: MD5_Init
+KLEE: WARNING: undefined reference to function: MD5_Update
+KLEE: WARNING: undefined reference to function: OBJ_NAME_add
+KLEE: WARNING: undefined reference to function: OPENSSL_add_all_algorithms_noconf
+KLEE: WARNING: undefined reference to function: SSLeay_version
+KLEE: WARNING: undefined reference to function: __cmsg_nxthdr
+KLEE: WARNING: undefined reference to function: __ctype_b_loc
+KLEE: WARNING: undefined reference to function: __isoc99_sscanf
+KLEE: WARNING: undefined reference to function: alarm
+KLEE: WARNING: undefined reference to function: ether_hostton
+KLEE: WARNING: undefined reference to function: ether_ntohost
+KLEE: WARNING: undefined reference to function: freeifaddrs
+KLEE: WARNING: undefined reference to function: getifaddrs
+KLEE: WARNING: undefined reference to function: getrpcbynumber
+KLEE: WARNING: undefined reference to function: poll
+KLEE: WARNING ONCE: calling external: syscall(16, 0, 21505, 201575632) at /home/jvanegue/hklee/runtime/POSIX/fd.c:1044
+KLEE: WARNING: Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)
+KLEE: WARNING: Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)
+KLEE: WARNING: Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)
+KLEE: WARNING: Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)
+KLEE: WARNING ONCE: calling external: gettimeofday(201628352, 0) at /home/jvanegue/hklee/runtime/POSIX/stubs.c:169
+KLEE: WARNING ONCE: calling external: vprintf(66842016, 57418624) at /home/jvanegue/klee-uclibc/libc/stdio/fprintf.c:39
+KLEE: WARNING ONCE: calling external: SSLeay_version(0) at [no debug info]
+KLEE: ERROR: (location information missing) failed external call: SSLeay_version
+KLEE: NOTE: now ignoring this error at this location
+KLEE: WARNING ONCE: calling external: getifaddrs(283726600) at [no debug info]
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 318517272). It's a memory error
+KLEE: ERROR: (location information missing) memory error: out of bound pointer
+KLEE: NOTE: now ignoring this error at this location
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 361648152). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 808960024). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 772845592). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1565536280). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1666158616). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1656401944). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1670631448). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1854283800). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 1963298840). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2130047000). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2224979992). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2334756888). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2428780568). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2480033816). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2484928536). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 39.70s
+KLEE: WARNING: max-instruction-time exceeded: 31.20s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2633678872). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2802077720). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2938810392). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2980388888). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2644013080). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3000127512). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 2819870744). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3157807128). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3154559000). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3057713176). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3198955544). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3216961560). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3296591896). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3183829016). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3363291160). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3418570776). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3357696024). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3337699352). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3725512728). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3832340504). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3722420248). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3683893272). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3896623128). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3800743960). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3515035672). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3600252952). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3775696920). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3893444632). It's a memory error
+(no libsmi support)
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3835371544). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3642302488). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3984527384). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4114202648). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3879161880). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4017348632). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4086562840). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 3875749912). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4152205336). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4246794264). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4107907096). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4371312664). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4394156056). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4199247896). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4091568152). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4345180184). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4433719320). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4102672408). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4259774488). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4555403288). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4111466520). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4100661272). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4435288088). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4034822168). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4294058008). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4586958872). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4263632920). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4165193752). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4170088472). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4669628440). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4473880600). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4540424216). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4386627608). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4543901720). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4452081688). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4836007960). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4657815576). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4758523928). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4899246104). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4793778200). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4659757080). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4749791256). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4714930200). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4820201496). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4845936664). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5018578968). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4869054488). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4699672600). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5236477976). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4970242072). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5081133080). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5175517208). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5194145816). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5298077720). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5015253016). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4993908760). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 120.70s
+KLEE: WARNING: max-instruction-time exceeded: 39.10s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5166215192). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 32.70s
+KLEE: WARNING: max-instruction-time exceeded: 38.90s
+KLEE: WARNING: max-instruction-time exceeded: 31.70s
+KLEE: WARNING: max-instruction-time exceeded: 32.80s
+KLEE: WARNING: max-instruction-time exceeded: 38.90s
+KLEE: WARNING: max-instruction-time exceeded: 146.10s
+KLEE: WARNING: max-instruction-time exceeded: 36.70s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5535514648). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 4878639128). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 72.80s
+KLEE: WARNING: max-instruction-time exceeded: 90.30s
+KLEE: WARNING: max-instruction-time exceeded: 119.30s
+KLEE: WARNING: max-instruction-time exceeded: 128.60s
+KLEE: WARNING: max-instruction-time exceeded: 35.30s
+KLEE: WARNING: max-instruction-time exceeded: 32.40s
+KLEE: WARNING: max-instruction-time exceeded: 45.00s
+KLEE: WARNING: max-instruction-time exceeded: 51.40s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5179293720). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 39.70s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5420097560). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 49.70s
+KLEE: WARNING: max-instruction-time exceeded: 30.50s
+KLEE: WARNING: max-instruction-time exceeded: 87.20s
+KLEE: WARNING: max-instruction-time exceeded: 55.10s
+KLEE: WARNING: max-instruction-time exceeded: 70.90s
+KLEE: WARNING: max-instruction-time exceeded: 99.80s
+KLEE: WARNING: max-instruction-time exceeded: 108.20s
+KLEE: WARNING: max-instruction-time exceeded: 43.50s
+KLEE: WARNING: max-instruction-time exceeded: 30.30s
+KLEE: WARNING: max-instruction-time exceeded: 114.20s
+KLEE: WARNING: max-instruction-time exceeded: 77.60s
+KLEE: WARNING: max-instruction-time exceeded: 49.40s
+KLEE: WARNING: max-instruction-time exceeded: 59.30s
+KLEE: WARNING: max-instruction-time exceeded: 39.10s
+KLEE: WARNING: max-instruction-time exceeded: 34.50s
+KLEE: WARNING: max-instruction-time exceeded: 31.30s
+KLEE: WARNING: max-instruction-time exceeded: 95.60s
+KLEE: WARNING: max-instruction-time exceeded: 47.40s
+KLEE: WARNING: max-instruction-time exceeded: 36.00s
+KLEE: WARNING: max-instruction-time exceeded: 107.80s
+KLEE: WARNING: max-instruction-time exceeded: 146.20s
+KLEE: WARNING: max-instruction-time exceeded: 31.90s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5192491032). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5498060824). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5255278616). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5485629464). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 31.80s
+KLEE: WARNING: max-instruction-time exceeded: 49.70s
+KLEE: WARNING: max-instruction-time exceeded: 30.40s
+KLEE: WARNING: max-instruction-time exceeded: 35.80s
+KLEE: WARNING: max-instruction-time exceeded: 84.80s
+KLEE: WARNING: max-instruction-time exceeded: 53.20s
+KLEE: WARNING: max-instruction-time exceeded: 85.10s
+KLEE: WARNING: max-instruction-time exceeded: 44.20s
+KLEE: WARNING: max-instruction-time exceeded: 39.10s
+KLEE: WARNING: max-instruction-time exceeded: 50.50s
+KLEE: WARNING: max-instruction-time exceeded: 76.70s
+KLEE: WARNING: max-instruction-time exceeded: 62.70s
+KLEE: WARNING: max-instruction-time exceeded: 81.90s
+KLEE: WARNING: max-instruction-time exceeded: 154.50s
+KLEE: WARNING: max-instruction-time exceeded: 34.20s
+KLEE: WARNING: max-instruction-time exceeded: 44.00s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5478567960). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5275021336). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5466382360). It's a memory error
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5219438616). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 42.30s
+KLEE: WARNING: max-instruction-time exceeded: 30.80s
+KLEE: WARNING: max-instruction-time exceeded: 37.00s
+KLEE: WARNING: max-instruction-time exceeded: 69.10s
+KLEE: WARNING: max-instruction-time exceeded: 31.30s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5148794904). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 143.50s
+KLEE: WARNING: max-instruction-time exceeded: 34.50s
+KLEE: WARNING: max-instruction-time exceeded: 46.30s
+KLEE: WARNING: max-instruction-time exceeded: 85.60s
+KLEE: WARNING: max-instruction-time exceeded: 81.10s
+KLEE: WARNING: max-instruction-time exceeded: 48.80s
+KLEE: WARNING: max-instruction-time exceeded: 36.00s
+KLEE: WARNING: max-instruction-time exceeded: 94.80s
+KLEE: WARNING: max-instruction-time exceeded: 62.00s
+KLEE: WARNING: max-instruction-time exceeded: 33.50s
+KLEE: WARNING: max-instruction-time exceeded: 118.00s
+KLEE: WARNING: max-instruction-time exceeded: 44.90s
+KLEE: WARNING: max-instruction-time exceeded: 69.40s
+KLEE: WARNING: max-instruction-time exceeded: 94.20s
+KLEE: WARNING: max-instruction-time exceeded: 196.20s
+KLEE: WARNING: max-instruction-time exceeded: 370.40s
+KLEE: WARNING: max-instruction-time exceeded: 35.20s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5190930456). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 33.90s
+KLEE: WARNING: max-instruction-time exceeded: 105.10s
+KLEE: WARNING: max-instruction-time exceeded: 227.80s
+KLEE: WARNING: max-instruction-time exceeded: 88.80s
+KLEE: WARNING: max-instruction-time exceeded: 79.00s
+KLEE: WARNING: max-instruction-time exceeded: 47.00s
+KLEE: WARNING: max-instruction-time exceeded: 60.80s
+KLEE: WARNING: max-instruction-time exceeded: 341.70s
+KLEE: WARNING: max-instruction-time exceeded: 137.00s
+KLEE: WARNING: max-instruction-time exceeded: 181.80s
+KLEE: WARNING: max-instruction-time exceeded: 107.00s
+KLEE: WARNING: max-instruction-time exceeded: 297.00s
+KLEE: WARNING: max-instruction-time exceeded: 112.70s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5678198808). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 92.00s
+KLEE: WARNING: max-instruction-time exceeded: 119.00s
+KLEE: WARNING: max-instruction-time exceeded: 65.80s
+KLEE: WARNING: max-instruction-time exceeded: 180.10s
+KLEE: WARNING: max-instruction-time exceeded: 39.30s
+KLEE: WARNING: max-instruction-time exceeded: 55.00s
+KLEE: WARNING: max-instruction-time exceeded: 37.10s
+KLEE: WARNING: max-instruction-time exceeded: 47.10s
+KLEE: WARNING: max-instruction-time exceeded: 35.30s
+KLEE: WARNING: max-instruction-time exceeded: 58.00s
+KLEE: WARNING: max-instruction-time exceeded: 51.80s
+KLEE: WARNING: max-instruction-time exceeded: 757.40s
+KLEE: WARNING: max-instruction-time exceeded: 629.20s
+KLEE: WARNING: max-instruction-time exceeded: 128.00s
+KLEE: WARNING: max-instruction-time exceeded: 1074.10s
+KLEE: WARNING: max-instruction-time exceeded: 44.40s
+KLEE: WARNING: max-instruction-time exceeded: 104.30s
+KLEE: WARNING: max-instruction-time exceeded: 397.40s
+KLEE: WARNING: max-instruction-time exceeded: 92.30s
+KLEE: WARNING: max-instruction-time exceeded: 84.50s
+KLEE: WARNING: max-instruction-time exceeded: 132.50s
+KLEE: WARNING: max-instruction-time exceeded: 75.00s
+KLEE: WARNING: max-instruction-time exceeded: 38.50s
+KLEE: WARNING: max-instruction-time exceeded: 142.00s
+HKLEE: Executor::executeMemoryOperation(): Could not resolve a pointer (at address 5347754008). It's a memory error
+KLEE: WARNING: max-instruction-time exceeded: 45.40s
+KLEE: WARNING: max-instruction-time exceeded: 39.00s
+KLEE: WARNING: max-instruction-time exceeded: 106.60s
+KLEE: WARNING: max-instruction-time exceeded: 253.80s
+KLEE: WARNING: max-instruction-time exceeded: 49.80s
+KLEE: WARNING: max-instruction-time exceeded: 276.00s
+KLEE: WARNING: max-instruction-time exceeded: 40.50s
+KLEE: WARNING: max-instruction-time exceeded: 41.60s
+KLEE: WARNING: max-instruction-time exceeded: 89.50s
+KLEE: WARNING: max-instruction-time exceeded: 104.50s
+KLEE: WARNING: max-instruction-time exceeded: 470.30s
+KLEE: WARNING: max-instruction-time exceeded: 255.40s
+KLEE: WARNING: max-instruction-time exceeded: 442.20s
+KLEE: WARNING: max-instruction-time exceeded: 148.20s
+KLEE: WARNING: max-instruction-time exceeded: 480.40s
+KLEE: WARNING: max-instruction-time exceeded: 96.90s
+KLEE: WARNING: max-instruction-time exceeded: 56.90s
+KLEE: WARNING: max-instruction-time exceeded: 419.60s
+KLEE: WARNING: max-instruction-time exceeded: 37.40s
+KLEE: WARNING: max-instruction-time exceeded: 452.80s
+KLEE: WARNING: max-instruction-time exceeded: 357.50s
+KLEE: WARNING: max-instruction-time exceeded: 16754.50s
+KLEE: WARNING: max-instruction-time exceeded: 724.70s
+KLEE: WARNING: max-instruction-time exceeded: 2360.90s
+KLEE: WARNING: max-instruction-time exceeded: 2486.20s
+KLEE: WARNING: max-instruction-time exceeded: 1035.30s
+KLEE: WARNING: max-instruction-time exceeded: 876.60s
+KLEE: WARNING: max-instruction-time exceeded: 111.00s
+KLEE: WARNING: max-instruction-time exceeded: 184.40s
+KLEE: WARNING: max-instruction-time exceeded: 542.70s
+KLEE: WARNING: max-instruction-time exceeded: 186.50s
+KLEE: WARNING: max-instruction-time exceeded: 114.70s
+KLEE: WARNING: max-instruction-time exceeded: 142.40s
+KLEE: WARNING: max-instruction-time exceeded: 58.30s
+KLEE: WARNING: max-instruction-time exceeded: 211.40s
+KLEE: WARNING: max-instruction-time exceeded: 219.10s
+KLEE: WARNING: max-instruction-time exceeded: 281.10s
+KLEE: WARNING: max-instruction-time exceeded: 44.00s
+KLEE: WARNING: max-instruction-time exceeded: 138.70s
+KLEE: WARNING: max-instruction-time exceeded: 604.10s
+KLEE: WARNING: max-instruction-time exceeded: 129.30s
+KLEE: WARNING: max-instruction-time exceeded: 132.80s
+KLEE: WARNING: max-instruction-time exceeded: 1520.00s
+KLEE: WARNING: max-instruction-time exceeded: 75.70s
+KLEE: WARNING: max-instruction-time exceeded: 62.30s
+KLEE: WARNING: max-instruction-time exceeded: 31.60s
+KLEE: WARNING: max-instruction-time exceeded: 674.20s
+KLEE: WARNING: max-instruction-time exceeded: 206.60s
+KLEE: WARNING: max-instruction-time exceeded: 56.70s
+KLEE: WARNING: max-instruction-time exceeded: 148.50s
+KLEE: WARNING: max-instruction-time exceeded: 587.90s
+KLEE: WARNING: max-instruction-time exceeded: 851.20s
+KLEE: WARNING: max-instruction-time exceeded: 367.50s
+KLEE: WARNING: max-instruction-time exceeded: 85.50s
+KLEE: WARNING: max-instruction-time exceeded: 454.60s
+KLEE: WARNING: max-instruction-time exceeded: 236.00s
+KLEE: WARNING: max-instruction-time exceeded: 292.80s
+KLEE: WARNING: max-instruction-time exceeded: 65.20s
+KLEE: WARNING: max-instruction-time exceeded: 73.40s
+KLEE: WARNING: max-instruction-time exceeded: 1052.80s
+KLEE: WARNING: max-instruction-time exceeded: 313.70s
+KLEE: WARNING: max-instruction-time exceeded: 1267.60s
+KLEE: WARNING: max-instruction-time exceeded: 2149.30s
+KLEE: WARNING: max-instruction-time exceeded: 317.50s
+KLEE: WARNING: max-instruction-time exceeded: 277.50s
+KLEE: WARNING: max-instruction-time exceeded: 327.50s
+KLEE: WARNING: max-instruction-time exceeded: 50.80s
+KLEE: WARNING: max-instruction-time exceeded: 2473.80s
+KLEE: WARNING: max-instruction-time exceeded: 3047.00s
+KLEE: WARNING: max-instruction-time exceeded: 168.50s
+KLEE: WARNING: max-instruction-time exceeded: 330.90s
+KLEE: WARNING: max-instruction-time exceeded: 1979.60s
+KLEE: WARNING: max-instruction-time exceeded: 344.90s
+KLEE: WARNING: max-instruction-time exceeded: 710.20s
+KLEE: WARNING: max-instruction-time exceeded: 319.50s
+KLEE: WARNING: max-instruction-time exceeded: 450.00s
+KLEE: WARNING: max-instruction-time exceeded: 1399.80s
+KLEE: WARNING: max-instruction-time exceeded: 598.20s
+KLEE: WARNING: max-instruction-time exceeded: 1242.00s
+KLEE: HaltTimer invoked
+KLEE: halting execution, dumping remaining states
+
+KLEE: done: total instructions = 13082281
+KLEE: done: completed paths = 234525
+KLEE: done: generated tests = 73
