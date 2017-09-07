@@ -87,55 +87,64 @@ for j in range(1,3):
         ## Convert seconds into hours for plotting
         curlabel = labels[i]
         hours = []
-        hours[:] = walltime[:]
+        hours[:] = walltime[:] / 60
 
         ### Plotting code
         plt.figure(fignum)
-
         manager = plt.get_current_fig_manager()
-        manager.resize(*manager.window.maxsize())
-        
-        plt.suptitle(title)
+        manager.resize(*manager.window.maxsize())        
+        plt.suptitle(title, fontsize=10)
 
         plt.subplot(231)
-        plt.title("States visited")
-        #plt.xlabel('Time passed (hours)')
+        plt.title("States visited", fontsize=10)
         plt.plot(hours, states, color=curcolor, label='States / time')
-
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+                
         ### Now how uncovered instruction count
         plt.subplot(232)
-        plt.title("Instrs covered")
-        #plt.xlabel('Time passed (hours)')
+        plt.title("Instrs covered", fontsize=10)
         plt.plot(hours, instrcov, color=curcolor, label='Instr Cov / time')
-
-        ### Now Malloc usage plotting
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+                
+        ### Now number of objects plotting
         plt.subplot(233)
-        plt.title("Malloc calls")
-        #plt.xlabel('Time passed (hours)')
-        plt.plot(hours, malloc, color=curcolor, label='Malloc calls / time')
-
-        ### Now number of objects plotting
-        plt.subplot(234)
-        plt.title("NUM objects")
-        #plt.xlabel('Time passed (hours)')
-        plt.plot(hours, numobj, color=curcolor, label='Object num / time')
-
+        plt.title("Instr NonCov", fontsize=10)
+        plt.plot(hours, instruncov, color=curcolor, label='Instr NonCov / time')
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+                
         ### Now Malloc usage plotting
-        plt.subplot(235)
-        plt.title("NUM queries")
-        #plt.xlabel('Time passed (hours)')
-        plt.plot(hours, numqueries, color=curcolor, label='Queries num / time')
-
+        plt.subplot(234)
+        plt.title("Malloc calls", fontsize=10)
+        plt.plot(hours, malloc, color=curcolor, label='Malloc calls / time')
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+                
         ### Now number of objects plotting
+        plt.subplot(235)
+        plt.title("Memory objects", fontsize=10)
+        plt.plot(hours, numobj, color=curcolor, label='Object num / time')
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+                
+        ### Now Malloc usage plotting
         ax = plt.subplot(236)
-        plt.title("Instr Uncov")
-        #plt.xlabel('Time passed (hours)')
-        plt.plot(hours, instruncov, color=curcolor, label='Instr Uncov / time')
-
+        plt.title("SMT queries", fontsize=10)
+        plt.plot(hours, numqueries, color=curcolor, label='Queries num / time')
+        plt.xlabel('Minutes', fontsize=10)
+        plt.ylabel("Count", fontsize=10)
+        
         handles, curlabels = ax.get_legend_handles_labels()
         plt.legend(handles, labels, loc='best', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=7)
 
-plt.tight_layout()
+        if (j == 1):
+            plt.savefig('klee-plot.png', dpi=700, pad_inches=20, fontsize=10)
+        else:
+            plt.savefig('hklee-plot.png', dpi=700, pad_inches=20, fontsize=10)
+
+#plt.tight_layout()        
 plt.show()
 
 
