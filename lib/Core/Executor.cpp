@@ -878,6 +878,9 @@ void Executor::branch(ExecutionState &state,
       ExecutionState *es = result[theRNG.getInt32() % i];
       ExecutionState *ns = es->branch();
 
+      // JV: Add this to track number of state space branching
+      statsTracker->incNumFork();
+      
       // JV: Add these two states in the symbolic edges
       this->trackEdges(*es, *ns, EDGE_SYM, "branch");
       
@@ -1099,6 +1102,10 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
     ++stats::forks;
 
     falseState = trueState->branch();
+
+    // JV: added
+    statsTracker->incNumFork();
+    
     addedStates.push_back(falseState);
 
     if (it != seedMap.end()) {
@@ -3573,6 +3580,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   if (SaidIsLocal)
     state.stack.back().allocas.push_back(mo);
 
+  // Update numObjects in stats tracker
+  statsTracker->updateNumObjects(state.addressSpace.objects.size());
+  
   return os;
 }
 

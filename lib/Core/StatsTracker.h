@@ -41,7 +41,10 @@ namespace klee {
     
     unsigned numBranches;
     unsigned fullBranches, partialBranches;
-
+    
+    unsigned long long int numObjects;
+    unsigned long long int numForks;
+    
     unsigned long long int numAllocations;
     unsigned long long int numConstAllocations;
     
@@ -67,6 +70,12 @@ namespace klee {
 
     // called after a malloc operation is called
     void memAllocated(bool constant_size);
+
+    // Number of objects in address space (non-monotonous)
+    void updateNumObjects(unsigned long long int num);
+
+    // Add to the number of forks done so far
+    void incNumFork();
     
     // called after a new StackFrame has been pushed (for callpath tracing)
     void framePushed(ExecutionState &es, StackFrame *parentFrame);

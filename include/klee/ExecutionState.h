@@ -117,6 +117,9 @@ public:
   /// @brief Costs for all queries issued for this state, in seconds
   mutable double queryCost;
 
+  /// @brief The static distance to a heap primitive call on the cfg
+  mutable int heapDist;
+  
   /// @brief Weight assigned for importance of this state.  Can be
   /// used for searchers to decide what paths to explore
   double weight;

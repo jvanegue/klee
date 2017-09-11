@@ -71,7 +71,8 @@ ExecutionState::ExecutionState(KFunction *kf) :
     pc(kf->instructions),
     prevPC(pc),
 
-    queryCost(0.), 
+    queryCost(0.),
+    heapDist(0.),
     weight(1),
     depth(0),
 
@@ -89,6 +90,7 @@ ExecutionState::ExecutionState(KFunction *kf) :
 ExecutionState::ExecutionState(const std::vector<ref<Expr> > &assumptions)
   : constraints(assumptions),
     queryCost(0.),
+    heapDist(0.),
     ptreeNode(0),
     id(0),
     last_heap_state_id(0),
@@ -119,6 +121,8 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     constraints(state.constraints),
 
     queryCost(state.queryCost),
+    heapDist(state.heapDist),
+    
     weight(state.weight),
     depth(state.depth),
 

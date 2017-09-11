@@ -76,7 +76,8 @@ namespace klee {
       NURS_Depth,
       NURS_ICnt,
       NURS_CPICnt,
-      NURS_QC
+      NURS_QC,
+      NURS_HeapCov
     };
   };
 
@@ -130,7 +131,8 @@ namespace klee {
       InstCount,
       CPInstCount,
       MinDistToUncovered,
-      CoveringNew
+      CoveringNew,
+      HeapCov
     };
 
   private:
@@ -158,6 +160,7 @@ namespace klee {
       case CPInstCount        : os << "CPInstCount\n"; return;
       case MinDistToUncovered : os << "MinDistToUncovered\n"; return;
       case CoveringNew        : os << "CoveringNew\n"; return;
+      case HeapCov            : os << "HeapCov\n"; return;
       default                 : os << "<unknown type>\n"; return;
       }
     }

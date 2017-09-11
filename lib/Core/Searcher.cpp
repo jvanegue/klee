@@ -177,7 +177,8 @@ WeightedRandomSearcher::WeightedRandomSearcher(WeightType _type)
   : states(new DiscretePDF<ExecutionState*>()),
     type(_type) {
   switch(type) {
-  case Depth: 
+  case Depth:
+  case HeapCov:
     updateWeights = false;
     break;
   case InstCount:
@@ -219,6 +220,10 @@ double WeightedRandomSearcher::getWeight(ExecutionState *es) {
   }
   case QueryCost:
     return (es->queryCost < .1) ? 1. : 1./es->queryCost;
+
+  case HeapCov:
+    return (es->heapDist == 0) ? 1.0 : 1.0/es->heapDist;
+
   case CoveringNew:
   case MinDistToUncovered: {
     uint64_t md2u = computeMinDistToUncovered(es->pc,
@@ -233,7 +238,11 @@ double WeightedRandomSearcher::getWeight(ExecutionState *es) {
     } else {
       return invMD2U * invMD2U;
     }
+    break;
   }
+
+    
+    
   }
 }
 

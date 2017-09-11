@@ -209,6 +209,8 @@ StatsTracker::StatsTracker(Executor &_executor, std::string _objectFilename,
     numBranches(0),
     fullBranches(0),
     partialBranches(0),
+    numObjects(0),
+    numForks(0),
     numAllocations(0),
     numConstAllocations(0),
     updateMinDistToUncovered(_updateMinDistToUncovered) {
@@ -396,6 +398,16 @@ void StatsTracker::stepInstruction(ExecutionState &es) {
  }
 
 
+ void StatsTracker::updateNumObjects(unsigned long long int num)
+ {
+   numObjects = num;
+ }
+
+ void StatsTracker::incNumFork()
+ {
+   numForks++;
+ }
+
  
 /* Should be called _after_ the es->pushFrame() */
 void StatsTracker::framePushed(ExecutionState &es, StackFrame *parentFrame) {
@@ -476,6 +488,9 @@ void StatsTracker::writeStatsHeader() {
 #ifdef DEBUG
 	     << "'ArrayHashTime',"
 #endif
+             << "'NumForks',"
+             << "'TotAllocs',"
+             << "'SymAllocs'"
              << ")\n";
   statsFile->flush();
 }
@@ -494,7 +509,7 @@ void StatsTracker::writeStatsLine() {
              << "," << util::GetTotalMallocUsage() + executor.memory->getUsedDeterministicSize()
              << "," << stats::queries
              << "," << stats::queryConstructs
-             << "," << 0 // was numObjects
+             << "," << numObjects
              << "," << elapsed()
              << "," << stats::coveredInstructions
              << "," << stats::uncoveredInstructions
@@ -506,6 +521,9 @@ void StatsTracker::writeStatsLine() {
 #ifdef DEBUG
              << "," << stats::arrayHashTime / 1000000.
 #endif
+             << "," << numForks
+             << "," << numAllocations
+             << "," << (numAllocations - numConstAllocations)
              << ")\n";
   statsFile->flush();
 }
