@@ -1,0 +1,57 @@
+A-data-stat0  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+model_version1  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+A-data2  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+%----------------------------------------------------
+ASSERT( ( NOT( (0b0000000000000000000000000000000 = (A-data-stat0[0x0000000B] @ (A-data-stat0[0x0000000A] @ (A-data-stat0[0x00000009] @ A-data-stat0[0x00000008]
+)
+)
+)[30:0]
+))) );
+ASSERT( BVGT(0x0000000000010000,(A-data-stat0[0x0000003F] @ (A-data-stat0[0x0000003E] @ (A-data-stat0[0x0000003D] @ (A-data-stat0[0x0000003C] @ (A-data-stat0[0x0000003B] @ (A-data-stat0[0x0000003A] @ (A-data-stat0[0x00000039] @ A-data-stat0[0x00000038]
+)
+)
+)
+)
+)
+)
+))
+ );
+ASSERT( ((((0x01 = model_version1[0x00000000]
+) AND (0x00 = model_version1[0x00000001]
+)
+) AND (0x00 = model_version1[0x00000002]
+)
+) AND (0x00 = model_version1[0x00000003]
+)
+) );
+ASSERT( ( NOT( (0x2 = A-data-stat0[0x00000019][7:4]
+))) );
+ASSERT( (LET let_k_0 = A-data2[0x00000000],
+let_k_1 = A-data2[0x00000001],
+let_k_2 = (0xB2 = A-data2[0x00000002]
+),
+let_k_3 = (0xA1 = A-data2[0x00000003]
+) IN 
+(((((0x34 = let_k_0
+) AND (0xCD = let_k_1
+)
+) AND let_k_2
+) AND let_k_3
+) OR (((((0x4D = let_k_0
+) AND (0x3C = let_k_1
+)
+) AND let_k_2
+) AND let_k_3
+) OR ((((0xD4 = let_k_0
+) AND (0xC3 = let_k_1
+)
+) AND let_k_2
+) AND let_k_3
+)
+)
+))  );
+ASSERT( BVGT(0x0002,(A-data2[0x00000005] @ A-data2[0x00000004]
+))
+ );
+%----------------------------------------------------
+QUERY( FALSE  );

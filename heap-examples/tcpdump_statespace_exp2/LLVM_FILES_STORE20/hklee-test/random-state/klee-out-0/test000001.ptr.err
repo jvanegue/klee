@@ -1,0 +1,14 @@
+Error: memory error: out of bound pointer
+Stack: 
+	#000027333 in pcap_ng_check_header (magic, fp=127097008, precision=0, errbuf=68693760, err=125438760)
+	#100025616 in pcap_fopen_offline_with_tstamp_precision (fp=127097008, precision=0, errbuf=68693760)
+	#200025560 in pcap_open_offline_with_tstamp_precision (fname=119774848, precision=0, errbuf=68693760)
+	#300162250 in __user_main (argc=8, argv=118819936)
+	#400175096 in __uClibc_main (argc=8, argv=118819936) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179071 in main (=8, =118819936)
+Info: 
+	address: 9223372036854759428
+	next: object at 140646101648544 of size 1536
+		MO36[1536] (no allocation info)
+	prev: object at 144873536 of size 944
+		MO11872[944] allocated at global:ndo_printers

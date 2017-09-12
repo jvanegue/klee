@@ -1,0 +1,70 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq false
+             (Eq 8192
+                 (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                                   4294966784)
+                          61440)))
+         (Eq 168627466
+             (ReadLSB w32 0 A-data))
+         (Eq 439041101
+             (ReadLSB w32 8 A-data))
+         (Eq false
+             (Ult N0:(ReadLSB w32 4 A-data)
+                  28))
+         (Eq false (Ult 2048 N0))
+         (Eq 32
+             (Select w64 (Ult 100
+                              (Add w64 12
+                                       N1:(Select w64 (Slt N2:(Add w64 18446744073709551604 (ZExt w64 N0))
+                                                           0)
+                                                      9223372036854775807
+                                                      N2)))
+                         88
+                         N1))
+         (Eq 1
+             (ReadLSB w16 12 A-data))
+         (Eq false
+             (Ult 16777216
+                  N3:(ReadLSB w32 48 A-data)))
+         (Eq false (Ult N3 12))
+         (Eq false (Ult 2048 N3))
+         (Eq false
+             (Eq 0
+                 N4:(And w64 N5:(Select w64 (Ult 100
+                                                 (Add w64 52
+                                                          N6:(Select w64 (Slt N7:(Add w64 18446744073709551608 N8:(ZExt w64 N3))
+                                                                              0)
+                                                                         9223372036854775807
+                                                                         N7)))
+                                            48
+                                            N6)
+                             18446744073709551584)))
+         (Eq N4 N5)
+         (Eq 1
+             (ReadLSB w32 44 A-data))
+         (Eq false
+             (Ult (Add w64 18446744073709551592 N8) 4))
+         (Eq 9
+             (ReadLSB w16 60 A-data))
+         (Eq 1
+             (ReadLSB w16 62 A-data))
+         (Slt N9:(Read w8 64 A-data) 0)
+         (Ult (ZExt w64 (And w32 (ZExt w32 N9) 127))
+              32)
+         (Eq false
+             (Ult (Add w64 18446744073709551584 N8) 4))
+         (Eq 9
+             (ReadLSB w16 68 A-data))
+         (Eq 1
+             (ReadLSB w16 70 A-data))]
+        false)

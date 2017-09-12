@@ -1,0 +1,9 @@
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:27
+/home/jvanegue/klee-uclibc/libc/stdio/fwrite.c:28
+/home/jvanegue/klee-uclibc/libc/stdio/_uintmaxtostr.c:149
+/home/jvanegue/klee-uclibc/libc/stdio/_uintmaxtostr.c:150
+/home/jvanegue/klee-uclibc/libc/stdio/_vfprintf.c:1573
+/home/jvanegue/klee-uclibc/libc/stdio/_vfprintf.c:1574
+/home/jvanegue/klee-uclibc/libc/stdio/_vfprintf.c:1576
+/home/jvanegue/klee-uclibc/libc/stdio/_vfprintf.c:1790
+/home/jvanegue/klee-uclibc/libc/stdio/_vfprintf.c:1791

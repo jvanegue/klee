@@ -1,0 +1,119 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq false
+             (Eq 8192
+                 (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                                   4294966784)
+                          61440)))
+         (Eq 168627466
+             (ReadLSB w32 0 A-data))
+         (Eq 439041101
+             (ReadLSB w32 8 A-data))
+         (Eq false
+             (Ult N0:(ReadLSB w32 4 A-data)
+                  28))
+         (Eq false (Ult 2048 N0))
+         (Eq 16
+             (Select w64 (Ult 100
+                              (Add w64 12
+                                       N1:(Select w64 (Slt N2:(Add w64 18446744073709551604 (ZExt w64 N0))
+                                                           0)
+                                                      9223372036854775807
+                                                      N2)))
+                         88
+                         N1))
+         (Eq 1
+             (ReadLSB w16 12 A-data))
+         (Eq false
+             (Ult 16777216
+                  N3:(ReadLSB w32 32 A-data)))
+         (Eq false (Ult N3 12))
+         (Eq false (Ult 2048 N3))
+         (Eq false
+             (Eq 4
+                 N4:(Select w64 (Ult 100
+                                     (Add w64 36
+                                              N5:(Select w64 (Slt N6:(Add w64 18446744073709551608 (ZExt w64 N3))
+                                                                  0)
+                                                             9223372036854775807
+                                                             N6)))
+                                64
+                                N5)))
+         (Eq false (Eq 5 N4))
+         (Eq false (Eq 6 N4))
+         (Eq false (Eq 7 N4))
+         (Eq false (Eq 8 N4))
+         (Eq false (Eq 9 N4))
+         (Eq false (Eq 10 N4))
+         (Eq false (Eq 11 N4))
+         (Eq false (Eq 12 N4))
+         (Eq false (Eq 13 N4))
+         (Eq false (Eq 14 N4))
+         (Eq false (Eq 15 N4))
+         (Eq false (Eq 16 N4))
+         (Eq false (Eq 17 N4))
+         (Eq false (Eq 18 N4))
+         (Eq false (Eq 19 N4))
+         (Eq false (Eq 20 N4))
+         (Eq false (Eq 21 N4))
+         (Eq false (Eq 22 N4))
+         (Eq false (Eq 23 N4))
+         (Eq false (Eq 24 N4))
+         (Eq false (Eq 25 N4))
+         (Eq false (Eq 26 N4))
+         (Eq false (Eq 27 N4))
+         (Eq false (Eq 28 N4))
+         (Eq false (Eq 29 N4))
+         (Eq false (Eq 30 N4))
+         (Eq false (Eq 31 N4))
+         (Eq false (Eq 32 N4))
+         (Eq false (Eq 33 N4))
+         (Eq false (Eq 34 N4))
+         (Eq false (Eq 35 N4))
+         (Eq false (Eq 36 N4))
+         (Eq false (Eq 37 N4))
+         (Eq false (Eq 38 N4))
+         (Eq false (Eq 39 N4))
+         (Eq false (Eq 40 N4))
+         (Eq false (Eq 41 N4))
+         (Eq false (Eq 42 N4))
+         (Eq false (Eq 43 N4))
+         (Eq false (Eq 44 N4))
+         (Eq false (Eq 45 N4))
+         (Eq false (Eq 46 N4))
+         (Eq false (Eq 47 N4))
+         (Eq false (Eq 48 N4))
+         (Eq false (Eq 49 N4))
+         (Eq false (Eq 50 N4))
+         (Eq false (Eq 51 N4))
+         (Eq false (Eq 52 N4))
+         (Eq false (Eq 53 N4))
+         (Eq false (Eq 54 N4))
+         (Eq false (Eq 55 N4))
+         (Eq false (Eq 56 N4))
+         (Eq false (Eq 57 N4))
+         (Eq false (Eq 58 N4))
+         (Eq false (Eq 59 N4))
+         (Eq false (Eq 60 N4))
+         (Eq false (Eq 61 N4))
+         (Eq false (Eq 62 N4))
+         (Eq false (Eq 63 N4))
+         (Eq false (Eq N6 N4))
+         (Eq false
+             (Eq 0
+                 (Or w32 N7:(UDiv w32 (UDiv w32 (Extract w32 0 N6) 10)
+                                      10)
+                         N8:(Extract w32 0 (LShr w64 N6 32)))))
+         (Eq false
+             (Eq 0
+                 (Or w32 (UDiv w32 N7 10) N8)))]
+        false)

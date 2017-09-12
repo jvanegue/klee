@@ -1,0 +1,13 @@
+Error: memory error: invalid pointer: free
+Stack: 
+	#000025524 in sf_cleanup (p=141367040)
+	#100024699 in pcap_close (p=141367040)
+	#200162888 in __user_main (argc=8, argv=142355552)
+	#300175096 in __uClibc_main (argc=8, argv=142355552) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#400179071 in main (=8, =142355552)
+Info: 
+	address: 9223372036854759424
+	next: object at 139817121875104 of size 1536
+		MO36[1536] (no allocation info)
+	prev: object at 3055055304 of size 8
+		MO8604837[8] allocated at install_bpf_program():  %call6 = tail call noalias i8* @malloc(i64 %mul) #1

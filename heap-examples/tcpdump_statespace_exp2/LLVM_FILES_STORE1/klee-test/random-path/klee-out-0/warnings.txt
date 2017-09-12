@@ -1,0 +1,148 @@
+KLEE: WARNING ONCE: function "bind" has inline asm
+KLEE: WARNING ONCE: function "getsockopt" has inline asm
+KLEE: WARNING ONCE: function "__libc_recvfrom" has inline asm
+KLEE: WARNING ONCE: function "__libc_recvmsg" has inline asm
+KLEE: WARNING ONCE: function "__libc_sendto" has inline asm
+KLEE: WARNING ONCE: function "setsockopt" has inline asm
+KLEE: WARNING ONCE: function "socket" has inline asm
+KLEE: WARNING ONCE: function "__libc_connect" has inline asm
+KLEE: WARNING: undefined reference to function: EVP_CIPHER_CTX_cleanup
+KLEE: WARNING: undefined reference to function: EVP_CIPHER_iv_length
+KLEE: WARNING: undefined reference to function: EVP_Cipher
+KLEE: WARNING: undefined reference to function: EVP_CipherInit
+KLEE: WARNING: undefined reference to function: EVP_get_cipherbyname
+KLEE: WARNING: undefined reference to function: MD5_Final
+KLEE: WARNING: undefined reference to function: MD5_Init
+KLEE: WARNING: undefined reference to function: MD5_Update
+KLEE: WARNING: undefined reference to function: OBJ_NAME_add
+KLEE: WARNING: undefined reference to function: OPENSSL_add_all_algorithms_noconf
+KLEE: WARNING: undefined reference to function: SSLeay_version
+KLEE: WARNING: undefined reference to function: __cmsg_nxthdr
+KLEE: WARNING: undefined reference to function: __ctype_b_loc
+KLEE: WARNING: undefined reference to function: __isoc99_sscanf
+KLEE: WARNING: undefined reference to function: alarm
+KLEE: WARNING: undefined reference to function: ether_hostton
+KLEE: WARNING: undefined reference to function: ether_ntohost
+KLEE: WARNING: undefined reference to function: freeifaddrs
+KLEE: WARNING: undefined reference to function: getifaddrs
+KLEE: WARNING: undefined reference to function: getrpcbynumber
+KLEE: WARNING: undefined reference to function: poll
+KLEE: WARNING ONCE: calling external: syscall(16, 0, 21505, 133800000) at /home/jvanegue/klee/runtime/POSIX/fd.c:1044
+KLEE: WARNING ONCE: Alignment of memory from call "malloc" is not modelled. Using alignment of 8.
+KLEE: WARNING ONCE: calling external: gettimeofday(133849680, 0) at /home/jvanegue/klee/runtime/POSIX/stubs.c:169
+KLEE: WARNING ONCE: calling external: getgid() at [no debug info]
+KLEE: WARNING: setgid: silently ignoring (returning 0)
+KLEE: WARNING ONCE: calling external: getuid() at [no debug info]
+KLEE: WARNING: setuid: silently ignoring (returning 0)
+KLEE: WARNING ONCE: ioctl: (TCGETS) symbolic file, incomplete model
+KLEE: WARNING ONCE: calling external: vprintf(132687288, 52752800) at /home/jvanegue/klee-uclibc/libc/stdio/fprintf.c:39
+KLEE: WARNING ONCE: Large alloc: 18446744073709551615 bytes.  KLEE may run out of memory.
+KLEE: WARNING ONCE: Alignment of memory from call "realloc" is not modelled. Using alignment of 8.
+KLEE: WARNING ONCE: Alignment of memory from call "calloc" is not modelled. Using alignment of 8.
+KLEE: WARNING ONCE: calling external: ether_ntohost(195528192, 80073120) at [no debug info]
+KLEE: WARNING ONCE: calling external: geteuid() at [no debug info]
+KLEE: WARNING: max-instruction-time exceeded: 40.00s
+KLEE: WARNING: max-instruction-time exceeded: 32.10s
+KLEE: WARNING: max-instruction-time exceeded: 37.00s
+KLEE: WARNING: max-instruction-time exceeded: 38.70s
+KLEE: WARNING: max-instruction-time exceeded: 45.10s
+KLEE: WARNING: max-instruction-time exceeded: 42.60s
+KLEE: WARNING: max-instruction-time exceeded: 38.60s
+KLEE: WARNING: max-instruction-time exceeded: 71.60s
+KLEE: WARNING: max-instruction-time exceeded: 51.50s
+KLEE: WARNING: max-instruction-time exceeded: 39.00s
+KLEE: WARNING: max-instruction-time exceeded: 91.80s
+KLEE: WARNING: max-instruction-time exceeded: 88.40s
+KLEE: WARNING: max-instruction-time exceeded: 31.60s
+KLEE: WARNING: max-instruction-time exceeded: 33.10s
+KLEE: WARNING: max-instruction-time exceeded: 58.80s
+KLEE: WARNING: max-instruction-time exceeded: 41.50s
+KLEE: WARNING: max-instruction-time exceeded: 33.60s
+KLEE: WARNING: max-instruction-time exceeded: 37.10s
+KLEE: WARNING: max-instruction-time exceeded: 83.10s
+KLEE: WARNING: max-instruction-time exceeded: 185.10s
+KLEE: WARNING: max-instruction-time exceeded: 137.00s
+KLEE: WARNING: max-instruction-time exceeded: 32.30s
+KLEE: WARNING: max-instruction-time exceeded: 38.90s
+KLEE: WARNING: max-instruction-time exceeded: 50.80s
+KLEE: WARNING: max-instruction-time exceeded: 293.80s
+KLEE: WARNING: max-instruction-time exceeded: 532.70s
+KLEE: WARNING: max-instruction-time exceeded: 46.40s
+KLEE: WARNING: max-instruction-time exceeded: 31.00s
+KLEE: WARNING: max-instruction-time exceeded: 45.50s
+KLEE: WARNING: max-instruction-time exceeded: 66.50s
+KLEE: WARNING: max-instruction-time exceeded: 166.90s
+KLEE: WARNING: max-instruction-time exceeded: 75.50s
+KLEE: WARNING: max-instruction-time exceeded: 95.40s
+KLEE: WARNING: max-instruction-time exceeded: 66.60s
+KLEE: WARNING: max-instruction-time exceeded: 194.50s
+KLEE: WARNING: max-instruction-time exceeded: 54.00s
+KLEE: WARNING: max-instruction-time exceeded: 63.00s
+KLEE: WARNING: max-instruction-time exceeded: 104.40s
+KLEE: WARNING: max-instruction-time exceeded: 64.00s
+KLEE: WARNING: max-instruction-time exceeded: 46.50s
+KLEE: WARNING: max-instruction-time exceeded: 154.10s
+KLEE: WARNING: max-instruction-time exceeded: 157.70s
+KLEE: WARNING: max-instruction-time exceeded: 103.40s
+KLEE: WARNING: max-instruction-time exceeded: 43.40s
+KLEE: WARNING: max-instruction-time exceeded: 127.40s
+KLEE: WARNING: max-instruction-time exceeded: 36.50s
+KLEE: WARNING: max-instruction-time exceeded: 35.00s
+KLEE: WARNING: max-instruction-time exceeded: 63.20s
+KLEE: WARNING: max-instruction-time exceeded: 51.40s
+KLEE: WARNING: max-instruction-time exceeded: 35.80s
+KLEE: WARNING: max-instruction-time exceeded: 53.10s
+KLEE: WARNING: max-instruction-time exceeded: 123.60s
+KLEE: WARNING: max-instruction-time exceeded: 61.80s
+KLEE: WARNING: max-instruction-time exceeded: 273.20s
+KLEE: WARNING: max-instruction-time exceeded: 59.40s
+KLEE: WARNING: max-instruction-time exceeded: 52.60s
+KLEE: WARNING: max-instruction-time exceeded: 57.20s
+KLEE: WARNING: max-instruction-time exceeded: 177.30s
+KLEE: WARNING: max-instruction-time exceeded: 168.80s
+KLEE: WARNING: max-instruction-time exceeded: 60.10s
+KLEE: WARNING: max-instruction-time exceeded: 121.70s
+KLEE: WARNING: max-instruction-time exceeded: 104.20s
+KLEE: WARNING: max-instruction-time exceeded: 57.70s
+KLEE: WARNING: max-instruction-time exceeded: 88.00s
+KLEE: WARNING: max-instruction-time exceeded: 79.10s
+KLEE: WARNING: max-instruction-time exceeded: 495.20s
+KLEE: WARNING: max-instruction-time exceeded: 35.00s
+KLEE: WARNING: max-instruction-time exceeded: 687.20s
+KLEE: WARNING: max-instruction-time exceeded: 149.10s
+KLEE: WARNING: max-instruction-time exceeded: 79.90s
+KLEE: WARNING: max-instruction-time exceeded: 41.70s
+KLEE: WARNING: max-instruction-time exceeded: 297.20s
+KLEE: WARNING: max-instruction-time exceeded: 486.10s
+KLEE: WARNING: max-instruction-time exceeded: 281.60s
+KLEE: WARNING: max-instruction-time exceeded: 94.80s
+KLEE: WARNING: max-instruction-time exceeded: 105.20s
+KLEE: WARNING: max-instruction-time exceeded: 457.30s
+KLEE: WARNING: max-instruction-time exceeded: 58.10s
+KLEE: WARNING: max-instruction-time exceeded: 30.50s
+KLEE: WARNING: max-instruction-time exceeded: 173.80s
+KLEE: WARNING: max-instruction-time exceeded: 144.90s
+KLEE: WARNING: max-instruction-time exceeded: 45.40s
+KLEE: WARNING: max-instruction-time exceeded: 155.40s
+KLEE: WARNING: max-instruction-time exceeded: 467.80s
+KLEE: WARNING: max-instruction-time exceeded: 183.50s
+KLEE: WARNING: max-instruction-time exceeded: 600.50s
+KLEE: WARNING: max-instruction-time exceeded: 63.90s
+KLEE: WARNING: max-instruction-time exceeded: 560.10s
+KLEE: WARNING: max-instruction-time exceeded: 46.80s
+KLEE: WARNING: max-instruction-time exceeded: 293.20s
+KLEE: WARNING: max-instruction-time exceeded: 357.00s
+KLEE: WARNING: max-instruction-time exceeded: 84.90s
+KLEE: WARNING: max-instruction-time exceeded: 40.20s
+KLEE: WARNING: max-instruction-time exceeded: 916.30s
+KLEE: WARNING: max-instruction-time exceeded: 431.10s
+KLEE: WARNING: max-instruction-time exceeded: 91.30s
+KLEE: WARNING: max-instruction-time exceeded: 91.50s
+KLEE: WARNING: max-instruction-time exceeded: 1326.00s
+KLEE: WARNING: max-instruction-time exceeded: 66.80s
+KLEE: WARNING: max-instruction-time exceeded: 300.10s
+KLEE: WARNING: max-instruction-time exceeded: 1132.20s
+KLEE: WARNING: max-instruction-time exceeded: 344.30s
+KLEE: WARNING: max-instruction-time exceeded: 10482.60s
+KLEE: WARNING: max-instruction-time exceeded: 800.70s
+KLEE: WARNING: max-instruction-time exceeded: 48620.00s

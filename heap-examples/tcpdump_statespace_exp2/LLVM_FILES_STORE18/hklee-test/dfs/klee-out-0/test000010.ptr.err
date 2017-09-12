@@ -1,0 +1,14 @@
+Error: memory error: invalid pointer: free
+Stack: 
+	#000027497 in pcap_ng_check_header (magic, fp=136272048, precision=0, errbuf=114864640, err=134630328)
+	#100025616 in pcap_fopen_offline_with_tstamp_precision (fp=136272048, precision=0, errbuf=114864640)
+	#200025560 in pcap_open_offline_with_tstamp_precision (fname=128966272, precision=0, errbuf=114864640)
+	#300162250 in __user_main (argc=8, argv=128011360)
+	#400175096 in __uClibc_main (argc=8, argv=128011360) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179071 in main (=8, =128011360)
+Info: 
+	address: 9223372036854759424
+	next: object at 140231112426656 of size 1536
+		MO36[1536] (no allocation info)
+	prev: object at 154683712 of size 456
+		MO11552[456] allocated at global:hard_msgs

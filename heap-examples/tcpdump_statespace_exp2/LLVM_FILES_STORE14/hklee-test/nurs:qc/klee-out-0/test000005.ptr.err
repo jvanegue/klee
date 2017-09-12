@@ -1,0 +1,23 @@
+Error: memory error: out of bound pointer
+File: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c
+Line: 17
+assembly.ll line: 182628
+Stack: 
+	#000182628 in memcpy (destaddr=9223372036854759432, srcaddr, len) at /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17
+	#100179502 in read (fd=3, buf=9223372036854759432, count) at /home/jvanegue/hklee/runtime/POSIX/fd.c:398
+	#200175474 in __stdio_READ (stream=197695664, buf=9223372036854759432, bufsize) at /home/jvanegue/klee-uclibc/libc/stdio/_READ.c:47
+	#300170604 in fread_unlocked (ptr=9223372036854759432, size=1, nmemb, stream=197695664) at /home/jvanegue/klee-uclibc/libc/stdio/fread.c:71
+	#400035066 in read_bytes (fp=197695664, buf=9223372036854759432, bytes_to_read, fail_on_eof=1, errbuf=116605696)
+	#500035210 in read_block (fp=197695664, p=197488064, cursor=51986912, errbuf=116605696)
+	#600027398 in pcap_ng_check_header (magic, fp=197695664, precision=0, errbuf=116605696, err=196726320)
+	#700025616 in pcap_fopen_offline_with_tstamp_precision (fp=197695664, precision=0, errbuf=116605696)
+	#800025560 in pcap_open_offline_with_tstamp_precision (fname=143229504, precision=0, errbuf=116605696)
+	#900162250 in __user_main (argc=8, argv=130166592)
+	#1000175096 in __uClibc_main (argc=8, argv=130166592) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#1100179071 in main (=8, =130166592)
+Info: 
+	address: 9223372036854759432
+	next: object at 9223372036854759424 of size 2049
+		MO27122[2049] allocated at read_block():  %call48 = call i8* @realloc(i8* %14, i64 %conv47) #1
+	prev: object at 198078560 of size 11
+		MO20035[11] allocated at strdup():  %call1 = tail call noalias i8* @malloc(i64 %add) #24, !dbg !5717

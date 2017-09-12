@@ -1,0 +1,4 @@
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:1109
+/home/jvanegue/klee-uclibc/libc/unistd/getopt.c:1148
+/home/jvanegue/klee-uclibc/libc/stdlib/stdlib.c:559
+:0

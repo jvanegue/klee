@@ -1,0 +1,344 @@
+A-data-stat0  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+model_version1  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+A-data2  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr13  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr24  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr35  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr46  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr57  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr68  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr79  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr810  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr911  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1112  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1013  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1214  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1315  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1416  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1517  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1718  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1619  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1820  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr1921  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr2022  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr2123  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr2324  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr2225  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+const_arr2426  : ARRAY BITVECTOR(32) OF BITVECTOR(8);
+%----------------------------------------------------
+ASSERT( ( NOT( (0b0000000000000000000000000000000 = (A-data-stat0[0x0000000B] @ (A-data-stat0[0x0000000A] @ (A-data-stat0[0x00000009] @ A-data-stat0[0x00000008]
+)
+)
+)[30:0]
+))) );
+ASSERT( BVGT(0x0000000000010000,(A-data-stat0[0x0000003F] @ (A-data-stat0[0x0000003E] @ (A-data-stat0[0x0000003D] @ (A-data-stat0[0x0000003C] @ (A-data-stat0[0x0000003B] @ (A-data-stat0[0x0000003A] @ (A-data-stat0[0x00000039] @ A-data-stat0[0x00000038]
+)
+)
+)
+)
+)
+)
+))
+ );
+ASSERT( ((((0x01 = model_version1[0x00000000]
+) AND (0x00 = model_version1[0x00000001]
+)
+) AND (0x00 = model_version1[0x00000002]
+)
+) AND (0x00 = model_version1[0x00000003]
+)
+) );
+ASSERT( ( NOT( (0x2 = A-data-stat0[0x00000019][7:4]
+))) );
+ASSERT( ((((0x0A = A-data2[0x00000000]
+) AND (0x0D = A-data2[0x00000001]
+)
+) AND (0x0D = A-data2[0x00000002]
+)
+) AND (0x0A = A-data2[0x00000003]
+)
+) );
+ASSERT( ( NOT( ((((0x4D = A-data2[0x00000008]
+) AND (0x3C = A-data2[0x00000009]
+)
+) AND (0x2B = A-data2[0x0000000A]
+)
+) AND (0x1A = A-data2[0x0000000B]
+)
+))) );
+ASSERT( (0x1A2B3C4D = ((((0x00 @ (A-data2[0x00000009] @ 0x0000
+)
+) | (A-data2[0x00000008] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x0000000A] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x0000000B]
+)
+)
+) );
+ASSERT( ( NOT( BVGT(0x0000001C,((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+))
+)) );
+ASSERT( ( NOT( BVGT(((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+),0x00000800)
+)) );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF IN 
+( NOT( (0b00000000000000000000000000000000000000000000000000000000000 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF[63:5]
+))))  );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF IN 
+( NOT( (0b00000000000000000000000000000000000000000000000000000000001 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF[63:5]
+))))  );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF,
+let_k_2 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF IN 
+(let_k_2 = (let_k_2[63:5] @ 0b00000
+)
+))  );
+ASSERT( (0x0001 = ((0x00 @ A-data2[0x0000000D]
+) | (A-data2[0x0000000C] @ 0x00
+)
+)
+) );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF,
+let_k_2 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF IN 
+( NOT( BVGT(((((0x00 @ (A-data2[BVPLUS(64, 
+0x0000000000000011, 
+let_k_2)
+[31:0]] @ 0x0000
+)
+) | (A-data2[BVPLUS(64, 
+0x0000000000000010, 
+let_k_2)
+[31:0]] @ 0x000000
+)
+) | (0x0000 @ (A-data2[BVPLUS(64, 
+0x0000000000000012, 
+let_k_2)
+[31:0]] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[BVPLUS(64, 
+0x0000000000000013, 
+let_k_2)
+[31:0]]
+)
+),0x01000000)
+)))  );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF,
+let_k_2 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF IN 
+( NOT( BVGT(0x0000000C,((((0x00 @ (A-data2[BVPLUS(64, 
+0x0000000000000011, 
+let_k_2)
+[31:0]] @ 0x0000
+)
+) | (A-data2[BVPLUS(64, 
+0x0000000000000010, 
+let_k_2)
+[31:0]] @ 0x000000
+)
+) | (0x0000 @ (A-data2[BVPLUS(64, 
+0x0000000000000012, 
+let_k_2)
+[31:0]] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[BVPLUS(64, 
+0x0000000000000013, 
+let_k_2)
+[31:0]]
+)
+))
+)))  );
+ASSERT( (LET let_k_0 = BVPLUS(64, 
+0xFFFFFFFFFFFFFFF4, 
+(0x00000000 @ ((((0x00 @ (A-data2[0x00000005] @ 0x0000
+)
+) | (A-data2[0x00000004] @ 0x000000
+)
+) | (0x0000 @ (A-data2[0x00000006] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[0x00000007]
+)
+)
+))
+,
+let_k_1 = IF(SBVGT(0x0000000000000000,let_k_0)
+)
+THEN 0x7FFFFFFFFFFFFFFF
+ELSE let_k_0
+ENDIF,
+let_k_2 = IF(BVGT(BVPLUS(64, 
+0x000000000000000C, 
+let_k_1)
+,0x0000000000000064)
+)
+THEN 0x0000000000000058
+ELSE let_k_1
+ENDIF IN 
+BVGT(((((0x00 @ (A-data2[BVPLUS(64, 
+0x0000000000000011, 
+let_k_2)
+[31:0]] @ 0x0000
+)
+) | (A-data2[BVPLUS(64, 
+0x0000000000000010, 
+let_k_2)
+[31:0]] @ 0x000000
+)
+) | (0x0000 @ (A-data2[BVPLUS(64, 
+0x0000000000000012, 
+let_k_2)
+[31:0]] @ 0x00
+)
+)
+) | (0x000000 @ A-data2[BVPLUS(64, 
+0x0000000000000013, 
+let_k_2)
+[31:0]]
+)
+),0x00000800)
+)  );
+%----------------------------------------------------
+QUERY( FALSE  );

@@ -1,0 +1,21 @@
+Error: memory error: out of bound pointer
+File: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c
+Line: 17
+assembly.ll line: 182628
+Stack: 
+	#000182628 in memcpy (destaddr=9223372036854743040, srcaddr=59523448, len) at /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17
+	#100179502 in read (fd=3, buf=9223372036854743040, count) at /home/jvanegue/hklee/runtime/POSIX/fd.c:398
+	#200175474 in __stdio_READ (stream=151443632, buf=9223372036854743040, bufsize) at /home/jvanegue/klee-uclibc/libc/stdio/_READ.c:47
+	#300170604 in fread_unlocked (ptr=9223372036854743040, size=1, nmemb, stream=151443632) at /home/jvanegue/klee-uclibc/libc/stdio/fread.c:71
+	#400036291 in pcap_next_packet (p=142176768, hdr=104662240, data=158684680)
+	#500025707 in pcap_offline_read (p=142176768, cnt=4294967295, callback=48349152, user=63475936)
+	#600024753 in pcap_loop (p=142176768, cnt=4294967295, callback=48349152, user=63475936)
+	#700162847 in __user_main (argc=8, argv=143166560)
+	#800175096 in __uClibc_main (argc=8, argv=143166560) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#900179071 in main (=8, =143166560)
+Info: 
+	address: 9223372036854743041
+	next: object at 139780390257824 of size 1536
+		MO36[1536] (no allocation info)
+	prev: object at 242411008 of size 1536
+		MO354816[1536] allocated at newhnamemem():  %call = tail call noalias i8* @calloc(i64 64, i64 24) #1

@@ -1,0 +1,96 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq 8192
+             (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                               4294966784)
+                      61440))
+         (Eq 168627466
+             (ReadLSB w32 0 A-data))
+         (Eq 439041101
+             (ReadLSB w32 8 A-data))
+         (Eq false
+             (Ult N0:(ReadLSB w32 4 A-data)
+                  28))
+         (Eq false (Ult 2048 N0))
+         (Eq false
+             (Eq 0
+                 N1:(And w64 N2:(Select w64 (Ult 100
+                                                 (Add w64 12
+                                                          N3:(Select w64 (Slt N4:(Add w64 18446744073709551604 (ZExt w64 N0))
+                                                                              0)
+                                                                         9223372036854775807
+                                                                         N4)))
+                                            88
+                                            N3)
+                             18446744073709551584)))
+         (Eq false (Eq 32 N1))
+         (Eq N1 N2)
+         (Eq 1
+             (ReadLSB w16 12 A-data))
+         (Eq false
+             (Ult 16777216
+                  N5:(Concat w32 (Read w8 (Extract w32 0 (Add w64 19 N2))
+                                          A-data)
+                                 (Concat w24 (Read w8 (Extract w32 0 (Add w64 18 N2))
+                                                      A-data)
+                                             (Concat w16 (Read w8 (Extract w32 0 (Add w64 17 N2))
+                                                                  A-data)
+                                                         (Read w8 (Extract w32 0 (Add w64 16 N2))
+                                                                  A-data))))))
+         (Eq false (Ult N5 12))
+         (Eq false (Ult 2048 N5))
+         (Eq 8
+             (Select w64 (Ult 100
+                              (Add w64 12
+                                       (Add w64 N6:(Add w64 N2
+                                                            (Select w64 (Ult 100 (Add w64 20 N2))
+                                                                        (Sub w64 88 N2)
+                                                                        8))
+                                                N7:(Select w64 (Slt N8:(Add w64 18446744073709551608 (ZExt w64 N5))
+                                                                    0)
+                                                               9223372036854775807
+                                                               N8))))
+                         (Sub w64 88 N6)
+                         N7))
+         (Eq false
+             (Eq 1
+                 N9:(Concat w32 (Read w8 (Extract w32 0 (Add w64 15 N2))
+                                         A-data)
+                                (Concat w24 (Read w8 (Extract w32 0 (Add w64 14 N2))
+                                                     A-data)
+                                            (Concat w16 (Read w8 (Extract w32 0 (Add w64 13 N2))
+                                                                 A-data)
+                                                        (Read w8 (Extract w32 0 (Add w64 12 N2))
+                                                                 A-data))))))
+         (Eq false (Eq 3 N9))
+         (Eq false (Eq 6 N9))
+         (Eq false (Eq 2 N9))
+         (Eq false
+             (Ult 16777216
+                  N10:(Concat w32 (Read w8 (Extract w32 0 (Add w64 27 N6))
+                                           A-data)
+                                  (Concat w24 (Read w8 (Extract w32 0 (Add w64 26 N6))
+                                                       A-data)
+                                              (Concat w16 (Read w8 (Extract w32 0 (Add w64 25 N6))
+                                                                   A-data)
+                                                          (Read w8 (Extract w32 0 (Add w64 24 N6))
+                                                                   A-data))))))
+         (Eq false (Ult N10 12))
+         (Ult 2048 N10)
+         (Eq 0
+             (Or w32 (UDiv w32 (UDiv w32 (UDiv w32 (UDiv w32 (Extract w32 0 N11:(Add w64 18446744073709551608 (ZExt w64 N10)))
+                                                             10)
+                                                   10)
+                                         10)
+                               10)
+                     (Extract w32 0 (LShr w64 N11 32))))]
+        false)

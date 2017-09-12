@@ -1,0 +1,12 @@
+Error: longjmp unsupported
+File: /home/jvanegue/klee/runtime/POSIX/illegal.c
+Line: 35
+assembly.ll line: 181331
+Stack: 
+	#000181331 in longjmp () at /home/jvanegue/klee/runtime/POSIX/illegal.c:35
+	#100016463 in bpf_error (fmt=79022016)
+	#200028577 in init_linktype (p=125414656)
+	#300016544 in pcap_compile (p=125414656, program=133848464, buf=0, optimize=1, mask=0)
+	#400162604 in __user_main (argc=8, argv=126444800)
+	#500175097 in __uClibc_main (argc=8, argv=126444800) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#600179072 in main (=8, =126444800)

@@ -1,0 +1,49 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq false
+             (Eq 8192
+                 (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                                   4294966784)
+                          61440)))
+         (Eq 168627466
+             (ReadLSB w32 0 A-data))
+         (Eq false
+             (Eq 439041101
+                 N0:(ReadLSB w32 8 A-data)))
+         (Eq 439041101
+             (Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N0 8) 16711680)
+                                     (Shl w32 N0 24))
+                             (And w32 (LShr w32 N0 8) 65280))
+                     (LShr w32 N0 24)))
+         (Eq false
+             (Ult N1:(Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N2:(ReadLSB w32 4 A-data)
+                                                               8)
+                                                      16711680)
+                                             (Shl w32 N2 24))
+                                     (And w32 (LShr w32 N2 8) 65280))
+                             (LShr w32 N2 24))
+                  28))
+         (Eq false (Ult 2048 N1))
+         (Eq 37
+             (Select w64 (Ult 100
+                              (Add w64 12
+                                       N3:(Select w64 (Slt N4:(Add w64 18446744073709551604 (ZExt w64 N1))
+                                                           0)
+                                                      9223372036854775807
+                                                      N4)))
+                         88
+                         N3))
+         (Eq 1
+             (Or w16 (LShr w16 N5:(ReadLSB w16 12 A-data)
+                               8)
+                     (Shl w16 N5 8)))]
+        false)

@@ -1,0 +1,21 @@
+Error: memory error: out of bound pointer
+File: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c
+Line: 17
+assembly.ll line: 182607
+Stack: 
+	#000182607 in memcpy (destaddr=9223372036854759424, srcaddr=54428024, len) at /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17
+	#100179502 in read (fd=3, buf=9223372036854759424, count) at /home/jvanegue/hklee/runtime/POSIX/fd.c:398
+	#200175474 in __stdio_READ (stream=146790576, buf=9223372036854759424, bufsize) at /home/jvanegue/klee-uclibc/libc/stdio/_READ.c:47
+	#300170604 in fread_unlocked (ptr=9223372036854759424, size=1, nmemb, stream=146790576) at /home/jvanegue/klee-uclibc/libc/stdio/fread.c:71
+	#400036332 in pcap_next_packet (p=137556480, hdr=4257174336, data=4329216648)
+	#500025707 in pcap_offline_read (p=137556480, cnt=4294967295, callback=43245536, user=58381824)
+	#600024753 in pcap_loop (p=137556480, cnt=4294967295, callback=43245536, user=58381824)
+	#700162847 in __user_main (argc=8, argv=138546272)
+	#800175096 in __uClibc_main (argc=8, argv=138546272) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#900179071 in main (=8, =138546272)
+Info: 
+	address: 9223372036854759440
+	next: object at 4329216648 of size 8
+		MO16757084[8] allocated at pcap_offline_read():  %data = alloca i8*, align 8
+	prev: object at 4277840224 of size 24
+		MO19950054[24] allocated at pcap_next_packet():  %sf_hdr = alloca %struct.pcap_sf_patched_pkthdr, align 4

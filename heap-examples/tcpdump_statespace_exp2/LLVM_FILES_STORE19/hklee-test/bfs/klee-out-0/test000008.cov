@@ -1,0 +1,10 @@
+/home/jvanegue/hklee/runtime/POSIX/illegal.c:30
+/home/jvanegue/klee-uclibc/libc/string/strdup.c:26
+/home/jvanegue/klee-uclibc/libc/string/strdup.c:28
+/home/jvanegue/klee-uclibc/libc/string/strdup.c:29
+/home/jvanegue/klee-uclibc/libc/string/strdup.c:30
+/home/jvanegue/klee-uclibc/libc/string/strdup.c:32
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:18
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:23
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:24
+:0

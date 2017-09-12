@@ -1,0 +1,15 @@
+Error: concretized symbolic size
+Stack: 
+	#000027847 in pcap_check_header (magic, fp=212624880, precision=0, errbuf=136598528, err=211873744)
+	#100025617 in pcap_fopen_offline_with_tstamp_precision (fp=212624880, precision=0, errbuf=136598528)
+	#200025561 in pcap_open_offline_with_tstamp_precision (fname=159701992, precision=0, errbuf=136598528)
+	#300162251 in __user_main (argc=8, argv=147403136)
+	#400175097 in __uClibc_main (argc=8, argv=147403136) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179072 in main (=8, =147403136)
+Info: 
+  size expr: (Select w64 (Slt N0:(ReadLSB w32 16 A-data)
+                               1)
+                          262144
+                          (SExt w64 N0))
+  concretization : 128
+  unbound example: 262144

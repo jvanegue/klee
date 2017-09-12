@@ -1,0 +1,4 @@
+/home/jvanegue/klee-uclibc/libc/stdio/vsnprintf.c:36
+/home/jvanegue/klee-uclibc/libc/stdio/snprintf.c:24
+/home/jvanegue/klee-uclibc/libc/stdio/snprintf.c:25
+:0

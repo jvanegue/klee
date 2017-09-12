@@ -1,0 +1,5 @@
+/home/jvanegue/klee-uclibc/libc/stdio/_READ.c:48
+/home/jvanegue/klee-uclibc/libc/stdio/_READ.c:49
+/home/jvanegue/klee-uclibc/libc/stdio/_READ.c:50
+/home/jvanegue/klee-uclibc/libc/stdio/ferror.c:18
+:0

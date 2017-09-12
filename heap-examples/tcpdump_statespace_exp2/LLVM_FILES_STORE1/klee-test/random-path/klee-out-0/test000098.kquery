@@ -1,0 +1,74 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq 8192
+             (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                               4294966784)
+                      61440))
+         (Eq 2712812621
+             (ReadLSB w32 0 A-data))
+         (Eq 543
+             (ReadLSB w16 4 A-data))
+         (Eq 128
+             (Select w64 N0:(Slt N1:(ReadLSB w32 16 A-data)
+                                 1)
+                         262144
+                         (SExt w64 N1)))
+         (Eq 105
+             (And w32 (ReadLSB w32 20 A-data)
+                      67108863))
+         (Eq false
+             (Ult N2:(Select w32 N0 262144 N1) 0))
+         (Eq 0
+             (ReadLSB w32 36 A-data))
+         (Eq false
+             (Eq 0
+                 (Or w32 (UDiv w32 (Extract w32 0 N3:(Select w64 (Slt N4:(SExt w64 (SDiv w32 N5:(Extract w32 0 (SRem w64 (SExt w64 (ReadLSB w32 24 A-data))
+                                                                                                                         86400))
+                                                                                             3600))
+                                                                      0)
+                                                                 (Sub w64 0 N4)
+                                                                 N4))
+                                   10)
+                         (Extract w32 0 (LShr w64 N3 32)))))
+         (Eq 0
+             (Extract w32 0 (LShr w64 N4 63)))
+         (Eq false
+             (Eq 0
+                 (Or w32 (UDiv w32 (Extract w32 0 N6:(Select w64 (Slt N7:(SExt w64 (SDiv w32 (SRem w32 N5 3600) 60))
+                                                                      0)
+                                                                 (Sub w64 0 N7)
+                                                                 N7))
+                                   10)
+                         (Extract w32 0 (LShr w64 N6 32)))))
+         (Eq false
+             (Eq 0
+                 (Or w32 (UDiv w32 (Extract w32 0 N8:(Select w64 (Slt N9:(SExt w64 (SRem w32 N5 60))
+                                                                      0)
+                                                                 (Sub w64 0 N9)
+                                                                 N9))
+                                   10)
+                         (Extract w32 0 (LShr w64 N8 32)))))
+         (Eq 0
+             (Or w32 (UDiv w32 N10:(Extract w32 0 N11:(ZExt w64 (Extract w32 0 (SDiv w64 (SExt w64 (ReadLSB w32 28 A-data))
+                                                                                         1000))))
+                               10)
+                     (Extract w32 0 (LShr w64 N11 32))))
+         (Eq false
+             (Eq 48
+                 (Extract w8 0 (Add w32 (Select w32 (Ult N12:(URem w32 N10 10) 10)
+                                                    48
+                                                    87)
+                                        N12))))
+         (Ult N2
+              N13:(ReadLSB w32 52 A-data))
+         (Ult 262144 N13)]
+        false)

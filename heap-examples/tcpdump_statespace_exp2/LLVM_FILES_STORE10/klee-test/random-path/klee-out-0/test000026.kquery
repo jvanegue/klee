@@ -1,0 +1,72 @@
+array A-data-stat[144] : w32 -> w8 = symbolic
+array arg0[11] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+array n_args[4] : w32 -> w8 = symbolic
+array stdout-stat[144] : w32 -> w8 = symbolic
+(query [(Ult N0:(ReadLSB w32 0 n_args)
+              3)
+         (Slt 0 N0)
+         (Eq false (Slt 1 N0))
+         (Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 stdout-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 stdout-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq 45 (Read w8 0 arg0))
+         (Eq false
+             (Eq 0 N1:(Read w8 1 arg0)))
+         (Eq false (Eq 45 N1))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N1) 24)
+                       24))
+         (Eq false
+             (Eq 0 N2:(Read w8 2 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N2) 24)
+                       24))
+         (Eq false
+             (Eq 0 N3:(Read w8 3 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N3) 24)
+                       24))
+         (Eq false
+             (Eq 0 N4:(Read w8 4 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N4) 24)
+                       24))
+         (Eq false
+             (Eq 0 N5:(Read w8 5 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N5) 24)
+                       24))
+         (Eq false
+             (Eq 0 N6:(Read w8 6 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N6) 24)
+                       24))
+         (Eq false
+             (Eq 0 N7:(Read w8 7 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N7) 24)
+                       24))
+         (Eq false
+             (Eq 0 N8:(Read w8 8 arg0)))
+         (Eq 97
+             (AShr w32 (Shl w32 (SExt w32 N8) 24)
+                       24))
+         (Eq false
+             (Eq 0 (Read w8 9 arg0)))
+         (Eq 113
+             (AShr w32 (Shl w32 (SExt w32 (Read w8 9 [10=0] @ arg0))
+                                24)
+                       24))]
+        false)

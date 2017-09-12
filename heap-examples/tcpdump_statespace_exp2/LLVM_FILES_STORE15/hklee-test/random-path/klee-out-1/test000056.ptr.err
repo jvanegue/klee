@@ -1,0 +1,21 @@
+Error: memory error: out of bound pointer
+File: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c
+Line: 17
+assembly.ll line: 182607
+Stack: 
+	#000182607 in memcpy (destaddr=9223372036854759424, srcaddr=75055688, len) at /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17
+	#100179502 in read (fd=3, buf=9223372036854759424, count) at /home/jvanegue/hklee/runtime/POSIX/fd.c:398
+	#200175474 in __stdio_READ (stream=150657200, buf=9223372036854759424, bufsize) at /home/jvanegue/klee-uclibc/libc/stdio/_READ.c:47
+	#300170604 in fread_unlocked (ptr=9223372036854759424, size=1, nmemb, stream=150657200) at /home/jvanegue/klee-uclibc/libc/stdio/fread.c:71
+	#400036332 in pcap_next_packet (p=141367040, hdr=3032349184, data=2939629576)
+	#500025707 in pcap_offline_read (p=141367040, cnt=4294967295, callback=46989280, user=62123232)
+	#600024753 in pcap_loop (p=141367040, cnt=4294967295, callback=46989280, user=62123232)
+	#700162847 in __user_main (argc=8, argv=142355552)
+	#800175096 in __uClibc_main (argc=8, argv=142355552) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#900179071 in main (=8, =142355552)
+Info: 
+	address: 9223372036854759440
+	next: object at 9223372036854759424 of size 32
+		MO8619779[32] allocated at pcap_check_header():  %call202 = call noalias i8* @malloc(i64 %conv201) #1
+	prev: object at 3055055304 of size 8
+		MO8604837[8] allocated at install_bpf_program():  %call6 = tail call noalias i8* @malloc(i64 %mul) #1

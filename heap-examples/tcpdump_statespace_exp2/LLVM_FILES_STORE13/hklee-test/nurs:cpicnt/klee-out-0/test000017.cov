@@ -1,0 +1,4 @@
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:18
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:23
+/home/jvanegue/klee-uclibc/libc/stdio/fileno.c:24
+:0

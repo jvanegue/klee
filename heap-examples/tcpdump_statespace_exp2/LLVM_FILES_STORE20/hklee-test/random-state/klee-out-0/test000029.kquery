@@ -1,0 +1,32 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq false
+             (Eq 8192
+                 (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                                   4294966784)
+                          61440)))
+         (Eq false
+             (Ult N0:(ReadLSB w16 4 A-data)
+                  2))
+         (Eq 246
+             (And w32 (ReadLSB w32 20 A-data)
+                      67108863))
+         (Eq 2712812621
+             (ReadLSB w32 0 A-data))
+         (Eq false (Eq 543 N0))
+         (Eq false (Eq 2 N0))
+         (Ult (Select w64 (Slt N1:(ReadLSB w32 16 A-data)
+                               1)
+                          262144
+                          (SExt w64 N1))
+              1073741824)]
+        false)

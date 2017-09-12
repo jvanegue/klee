@@ -1,0 +1,14 @@
+Error: memory error: out of bound pointer
+Stack: 
+	#000027333 in pcap_ng_check_header (magic, fp=188487856, precision=0, errbuf=107688704, err=187518512)
+	#100025616 in pcap_fopen_offline_with_tstamp_precision (fp=188487856, precision=0, errbuf=107688704)
+	#200025560 in pcap_open_offline_with_tstamp_precision (fname=133873384, precision=0, errbuf=107688704)
+	#300162250 in __user_main (argc=8, argv=120811328)
+	#400175096 in __uClibc_main (argc=8, argv=120811328) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179071 in main (=8, =120811328)
+Info: 
+	address: 9223372036854759428
+	next: object at 9223372036854759424 of size 2049
+		MO34976[2049] allocated at pcap_ng_check_header():  %call67 = call noalias i8* @malloc(i64 %24) #1
+	prev: object at 188875744 of size 11
+		MO34927[11] allocated at strdup():  %call1 = tail call noalias i8* @malloc(i64 %add) #24, !dbg !5717

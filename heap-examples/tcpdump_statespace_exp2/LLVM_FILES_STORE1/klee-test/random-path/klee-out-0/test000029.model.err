@@ -1,0 +1,14 @@
+Error: concretized symbolic size
+Stack: 
+	#000036277 in pcap_next_packet (p=125414656, hdr=549548448, data=543510016)
+	#100025708 in pcap_offline_read (p=125414656, cnt=4294967295, callback=31703008, user=52903392)
+	#200024754 in pcap_loop (p=125414656, cnt=4294967295, callback=31703008, user=52903392)
+	#300162848 in __user_main (argc=8, argv=126444800)
+	#400175097 in __uClibc_main (argc=8, argv=126444800) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#500179072 in main (=8, =126444800)
+Info: 
+  size expr: (ZExt w64 (And w32 (Add w32 1023
+                                          (ReadLSB w32 36 A-data))
+                                 4294966272))
+  concretization : 1024
+  unbound example: 2048

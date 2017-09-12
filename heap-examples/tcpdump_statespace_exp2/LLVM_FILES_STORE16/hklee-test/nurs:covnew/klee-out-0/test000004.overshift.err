@@ -1,0 +1,11 @@
+Error: overshift error
+Stack: 
+	#000182515 in klee_overshift_check (bitWidth=32, shift) at /home/jvanegue/hklee/runtime/Intrinsic/klee_overshift_check.c:27
+	#100041030 in process_idb_options (p=205571008, cursor=59124384, tsresol=233977792, tsoffset=233975440, errbuf=125087232)
+	#200035320 in add_interface (p=205571008, cursor=59124384, errbuf=125087232)
+	#300027460 in pcap_ng_check_header (magic, fp=205772976, precision=0, errbuf=125087232, err=204803632)
+	#400025616 in pcap_fopen_offline_with_tstamp_precision (fp=205772976, precision=0, errbuf=125087232)
+	#500025560 in pcap_open_offline_with_tstamp_precision (fname=151157488, precision=0, errbuf=125087232)
+	#600162250 in __user_main (argc=8, argv=138096448)
+	#700175096 in __uClibc_main (argc=8, argv=138096448) at /home/jvanegue/klee-uclibc/libc/misc/internals/__uClibc_main.c:401
+	#800179071 in main (=8, =138096448)

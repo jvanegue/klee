@@ -1,0 +1,9 @@
+KLEE: Using STP solver backend
+KLEE: ERROR: (location information missing) memory error: out of bound pointer
+KLEE: NOTE: now ignoring this error at this location
+KLEE: ERROR: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17: memory error: out of bound pointer
+KLEE: NOTE: now ignoring this error at this location
+KLEE: ERROR: /home/jvanegue/hklee/runtime/Intrinsic/memcpy.c:17: memory error: out of bound pointer
+KLEE: NOTE: now ignoring this error at this location
+KLEE: HaltTimer invoked
+KLEE: halting execution, dumping remaining states

@@ -1,0 +1,96 @@
+array A-data[100] : w32 -> w8 = symbolic
+array A-data-stat[144] : w32 -> w8 = symbolic
+array model_version[4] : w32 -> w8 = symbolic
+(query [(Eq false
+             (Eq 0
+                 (And w64 (ReadLSB w64 8 A-data-stat)
+                          2147483647)))
+         (Ult (ReadLSB w64 56 A-data-stat)
+              65536)
+         (Eq 1
+             (ReadLSB w32 0 model_version))
+         (Eq 8192
+             (And w32 (And w32 (ReadLSB w32 24 A-data-stat)
+                               4294966784)
+                      61440))
+         (Eq 168627466
+             (ReadLSB w32 0 A-data))
+         (Eq false
+             (Eq 439041101
+                 N0:(ReadLSB w32 8 A-data)))
+         (Eq 439041101
+             (Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N0 8) 16711680)
+                                     (Shl w32 N0 24))
+                             (And w32 (LShr w32 N0 8) 65280))
+                     (LShr w32 N0 24)))
+         (Eq false
+             (Ult N1:(Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N2:(ReadLSB w32 4 A-data)
+                                                               8)
+                                                      16711680)
+                                             (Shl w32 N2 24))
+                                     (And w32 (LShr w32 N2 8) 65280))
+                             (LShr w32 N2 24))
+                  28))
+         (Eq false (Ult 2048 N1))
+         (Eq 33
+             (Select w64 (Ult 100
+                              (Add w64 12
+                                       N3:(Select w64 (Slt N4:(Add w64 18446744073709551604 (ZExt w64 N1))
+                                                           0)
+                                                      9223372036854775807
+                                                      N4)))
+                         88
+                         N3))
+         (Eq 1
+             (Or w16 (LShr w16 N5:(ReadLSB w16 12 A-data)
+                               8)
+                     (Shl w16 N5 8)))
+         (Eq false
+             (Ult 16777216
+                  N6:(Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N7:(ReadLSB w32 49 A-data)
+                                                               8)
+                                                      16711680)
+                                             (Shl w32 N7 24))
+                                     (And w32 (LShr w32 N7 8) 65280))
+                             (LShr w32 N7 24))))
+         (Eq false (Ult N6 12))
+         (Eq false (Ult 2048 N6))
+         (Eq false
+             (Eq 0
+                 N8:(And w64 N9:(Select w64 (Ult 100
+                                                 (Add w64 53
+                                                          N10:(Select w64 (Slt N11:(Add w64 18446744073709551608 N12:(ZExt w64 N6))
+                                                                               0)
+                                                                          9223372036854775807
+                                                                          N11)))
+                                            47
+                                            N10)
+                             18446744073709551584)))
+         (Eq N8 N9)
+         (Eq 1
+             (Or w32 (Or w32 (Or w32 (And w32 (Shl w32 N13:(ReadLSB w32 45 A-data)
+                                                       8)
+                                              16711680)
+                                     (Shl w32 N13 24))
+                             (And w32 (LShr w32 N13 8) 65280))
+                     (LShr w32 N13 24)))
+         (Eq false
+             (Ult (Add w64 18446744073709551592 N12)
+                  N14:(And w64 (Add w64 3
+                                        (ZExt w64 (Or w16 (LShr w16 N15:(ReadLSB w16 63 A-data)
+                                                                    8)
+                                                          (Shl w16 N15 8))))
+                               131068)))
+         (Eq false
+             (Eq 0
+                 N16:(Or w16 (LShr w16 N17:(ReadLSB w16 61 A-data)
+                                       8)
+                             (Shl w16 N17 8))))
+         (Eq false (Eq 9 N16))
+         (Eq false (Eq 14 N16))
+         (Eq 24 (Sub w64 N12 N14))
+         (Eq 1
+             (Or w16 (LShr w16 N18:(ReadLSB w16 53 A-data)
+                               8)
+                     (Shl w16 N18 8)))]
+        false)
