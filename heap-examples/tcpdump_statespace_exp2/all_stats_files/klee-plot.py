@@ -83,36 +83,40 @@ hasymallocs = [data1h['SymAllocs'], data2h['SymAllocs'], data3h['SymAllocs'], da
 colors = ['red', 'blue', 'green', 'purple', 'orange', 'yellow', 'black', 'magenta', 'cyan', 'olive']
 labels = ['covnew', 'instrcnt', 'wdepth', 'randpath', 'cpicnt', 'md2u', 'qc', 'dfs', 'bfs', 'randstate']
 
-for j in range(1,3):
+klist = ["klee", "hklee"]
+for j in klist:
     
-    for i in range(0, 11):
+    for i in range(0, 10):
 
+        
         title = "Unknown title"
-        if (j == 1):
-            walltime = awalltime[i][:2200]
-            states = astates[i][:2200]
-            instrcov = ainstrcov[i][:2200]
-            malloc = amalloc[i][:2200]
-            numobj = anumobj[i][:2200]
-            numqueries = anumqueries[i][:2200]
-            instruncov = ainstruncov[i][:2200]
-            numforks = [0] * 2200
-            totallocs = [0] * 2200
-            symallocs = [0] * 2200
+        if (j == "klee"):
+            sample = 2000
+            walltime = awalltime[i][:sample]
+            states = astates[i][:sample]
+            instrcov = ainstrcov[i][:sample]
+            malloc = amalloc[i][:sample]
+            numobj = anumobj[i][:sample]
+            numqueries = anumqueries[i][:sample]
+            instruncov = ainstruncov[i][:sample]
+            numforks = [0] * sample
+            totallocs = [0] * sample
+            symallocs = [0] * sample
             curcolor = colors[i]
             fignum = 1
             title = "Vanilla KLEE"
         else:
-            walltime = hawalltime[i][:6000]
-            states = hastates[i][:6000]
-            instrcov = hainstrcov[i][:6000]
-            malloc = hamalloc[i][:6000]
-            numobj = hanumobj[i][:6000]
-            numqueries = hanumqueries[i][:6000]
-            instruncov = hainstruncov[i][:6000]
-            numforks = hanumforks[i][:6000]
-            totallocs = hatotallocs[i][:6000]
-            symallocs = hasymallocs[i][:6000]
+            hsample = 6000
+            walltime = hawalltime[i][:hsample]
+            states = hastates[i][:hsample]
+            instrcov = hainstrcov[i][:hsample]
+            malloc = hamalloc[i][:hsample]
+            numobj = hanumobj[i][:hsample]
+            numqueries = hanumqueries[i][:hsample]
+            instruncov = hainstruncov[i][:hsample]
+            numforks = hanumforks[i][:hsample]
+            totallocs = hatotallocs[i][:hsample]
+            symallocs = hasymallocs[i][:hsample]
             curcolor = colors[i]
             fignum = 2
             title = "Heap KLEE"
@@ -191,7 +195,7 @@ for j in range(1,3):
         handles, curlabels = ax.get_legend_handles_labels()
         plt.legend(handles, labels, loc='best', bbox_to_anchor=(0.5, -0.05), fancybox=True, shadow=True, ncol=10)
 
-        if (j == 1):
+        if (j == "klee"):
             plt.savefig('klee-plot.png', dpi=700, pad_inches=20, fontsize=10)
         else:
             plt.savefig('hklee-plot.png', dpi=700, pad_inches=20, fontsize=10)
