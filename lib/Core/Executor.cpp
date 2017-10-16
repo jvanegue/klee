@@ -1040,7 +1040,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       }
     }
   }
-
+  
   // Fix branch in only-replay-seed mode, if we don't have both true
   // and false seeds.
   if (isSeeding && 
@@ -3795,14 +3795,15 @@ void Executor::executeAlloc(ExecutionState &state,
                             KInstruction *target,
                             bool zeroMemory,
                             const ObjectState *reallocFrom) {
-
-  // JV: This looks incorrect - it will force conversion to a ConstantExpr, we want to do this after the cast below.
-  size = toUnique(state, size);
   
   /* When the size is constant */
   MemoryObject *mo;
   ConstantExpr *CE = dyn_cast<ConstantExpr>(size);
 
+  // This was at the first line of the line - brought here instead.
+  // JV: This looks incorrect - it will force conversion to a ConstantExpr, we want to do this after the cast below.
+  //size = toUnique(state, size);
+  
   /* Track how many allocations were symbolic and how many were of constant size */
 
   /* This counts the numbe of calls with symbolic size rather than the number of locations, so we enable this
@@ -3818,12 +3819,16 @@ void Executor::executeAlloc(ExecutionState &state,
       mo = memory->allocate(CE->getZExtValue(), isLocal, false,
 			    state.prevPC->inst);
 
-      //llvm::outs() << " FOUND MALLOC WITH CONCRETE SIZE\n";
+      llvm::outs() << " FOUND MALLOC WITH CONCRETE SIZE\n";
       
   } else /* When the size is symbolic */
   {
     
-    //llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
+    llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
+
+    llvm::outs() << "PRINT CONSTRAINTS at SYMBOLIC MALLOC \n";
+
+    state.constraints.print(llvm::outs());
     
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
@@ -3854,8 +3859,6 @@ void Executor::executeAlloc(ExecutionState &state,
     assert(hugeSize.first);
     assert(hugeSize.first == &state);
 
-    /* IVANP: We could have used 'getRange()' as below but it seems slower then
-     * our custom binary search <getLowerBound()>*/
     bool timedout;
     solver->setTimeout(coreSolverTimeout);
     std::pair< ref<Expr>, ref<Expr> > range = solver->getRange(state, size, timedout);
@@ -4222,7 +4225,7 @@ void Executor::executeMemoryOperation(ExecutionState &state,
 
     //op = rl[0];
   }
-
+  
   const MemoryObject *mo = op.first;
 
   if (MaxSymArraySize && mo->size>=MaxSymArraySize) {
@@ -4244,6 +4247,8 @@ void Executor::executeMemoryOperation(ExecutionState &state,
   }
 
   if (inBounds) {
+    // 
+    
     const ObjectState *os;
     if(mo->isSizeDynamic)
     {
