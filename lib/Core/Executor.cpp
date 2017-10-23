@@ -943,11 +943,11 @@ void Executor::branch(ExecutionState &state,
 
   for (unsigned i=0; i<N; ++i)
     if (result[i])
-      addConstraint(*result[i], conditions[i]);
+      addConstraint(*result[i], conditions[i], 'B');
 }
 
 Executor::StatePair 
-Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
+Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, unsigned char attrib) {
   Solver::Validity res;
   std::map< ExecutionState*, std::vector<SeedInfo> >::iterator it = 
     seedMap.find(&current);
@@ -975,7 +975,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       bool success = solver->getValue(current, condition, value);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
-      addConstraint(current, EqExpr::create(value, condition));
+      addConstraint(current, EqExpr::create(value, condition), 'P');
       condition = value;
     }
   }
@@ -1006,10 +1006,10 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
         // add constraints
         if(branch) {
           res = Solver::True;
-          addConstraint(current, condition);
+          addConstraint(current, condition, 'B');
         } else  {
           res = Solver::False;
-          addConstraint(current, Expr::createIsZero(condition));
+          addConstraint(current, Expr::createIsZero(condition), 'B');
         }
       }
     } else if (res==Solver::Unknown) {
@@ -1031,10 +1031,10 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
 
         TimerStatIncrementer timer(stats::forkTime);
         if (theRNG.getBool()) {
-          addConstraint(current, condition);
+          addConstraint(current, condition, 'L');
           res = Solver::True;        
         } else {
-          addConstraint(current, Expr::createIsZero(condition));
+          addConstraint(current, Expr::createIsZero(condition), 'L');
           res = Solver::False;
         }
       }
@@ -1067,7 +1067,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       assert(trueSeed || falseSeed);
       
       res = trueSeed ? Solver::True : Solver::False;
-      addConstraint(current, trueSeed ? condition : Expr::createIsZero(condition));
+      addConstraint(current, trueSeed ? condition : Expr::createIsZero(condition), 'S');
     }
   }
 
@@ -1165,8 +1165,8 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
       }
     }
 
-    addConstraint(*trueState, condition);
-    addConstraint(*falseState, Expr::createIsZero(condition));
+    addConstraint(*trueState, condition, 'B');
+    addConstraint(*falseState, Expr::createIsZero(condition), 'B');
 
     // Kinda gross, do we even really still want this option?
     if (MaxDepth && MaxDepth<=trueState->depth) {
@@ -1179,7 +1179,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal) {
   }
 }
 
-void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
+void Executor::addConstraint(ExecutionState &state, ref<Expr> condition, unsigned char attrib) {
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(condition)) {
     if (!CE->isTrue())
       llvm::report_fatal_error("attempt to add invalid constraint");
@@ -1207,7 +1207,7 @@ void Executor::addConstraint(ExecutionState &state, ref<Expr> condition) {
       klee_warning("seeds patched for violating constraint"); 
   }
 
-  state.addConstraint(condition);
+  state.addConstraint(condition, attrib);
   if (ivcEnabled)
     doImpliedValueConcretization(state, condition, 
                                  ConstantExpr::alloc(1, Expr::Bool));
@@ -1351,7 +1351,7 @@ Executor::toConstant(ExecutionState &state,
   else
     klee_warning_once(reason, "%s", os.str().c_str());
 
-  addConstraint(state, EqExpr::create(e, value));
+  addConstraint(state, EqExpr::create(e, value), 'C');
     
   return value;
 }
@@ -1859,6 +1859,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  if (ret_is_symbolic)
 	    {
 	      (*debugHeapFile) << "SET return value AS symbolic \n";
+	      sym_result->attrib_set('R');
 	      bindLocal(kcaller, state, sym_result);
 	      //ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, sym_result));     
 	      //state.addConstraint(eq);
@@ -1875,8 +1876,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	      fflush(stdout);
 	    }
 	  else
-	    bindLocal(kcaller, state, result);
-
+	    {
+	      result->attrib_set('R');
+	      bindLocal(kcaller, state, result);
+	    }
 	  
         }
       } else {
@@ -1922,7 +1925,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       assert(bi->getCondition() == bi->getOperand(0) &&
              "Wrong operand index!");
       ref<Expr> cond = eval(ki, 0, state).value;
-      Executor::StatePair branches = fork(state, cond, false);
+      Executor::StatePair branches = fork(state, cond, false, 'B');
 
       // JV: Add edges for states
       this->trackEdges(state, branches, Executor::EDGE_SYM, "br2");
@@ -2298,6 +2301,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 #else
     ref<Expr> result = eval(ki, state.incomingBBIndex * 2, state).value;
 #endif
+    result->attrib_set('P');
     bindLocal(ki, state, result);
     break;
   }
@@ -2308,6 +2312,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> tExpr = eval(ki, 1, state).value;
     ref<Expr> fExpr = eval(ki, 2, state).value;
     ref<Expr> result = SelectExpr::create(cond, tExpr, fExpr);
+    result->attrib_set('S');
     bindLocal(ki, state, result);
     break;
   }
@@ -2557,6 +2562,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (kgepi->offset)
       base = AddExpr::create(base,
                              Expr::createPointer(kgepi->offset));
+    base->attrib_set('G');
     bindLocal(ki, state, base);
     break;
   }
@@ -2567,6 +2573,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> result = ExtractExpr::create(eval(ki, 0, state).value,
                                            0,
                                            getWidthForLLVMType(ci->getType()));
+    result->attrib_set('T');
     bindLocal(ki, state, result);
     break;
   }
@@ -2574,6 +2581,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     CastInst *ci = cast<CastInst>(i);
     ref<Expr> result = ZExtExpr::create(eval(ki, 0, state).value,
                                         getWidthForLLVMType(ci->getType()));
+    result->attrib_set('Z');
     bindLocal(ki, state, result);
     break;
   }
@@ -2581,6 +2589,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     CastInst *ci = cast<CastInst>(i);
     ref<Expr> result = SExtExpr::create(eval(ki, 0, state).value,
                                         getWidthForLLVMType(ci->getType()));
+    result->attrib_set('S');
     bindLocal(ki, state, result);
     break;
   }
@@ -2589,19 +2598,24 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width pType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, pType));
+    ref<Expr> ze = ZExtExpr::create(arg, pType);
+    ze->attrib_set('C');
+    bindLocal(ki, state, ze);
     break;
   } 
   case Instruction::PtrToInt: {
     CastInst *ci = cast<CastInst>(i);
     Expr::Width iType = getWidthForLLVMType(ci->getType());
     ref<Expr> arg = eval(ki, 0, state).value;
-    bindLocal(ki, state, ZExtExpr::create(arg, iType));
+    ref<Expr> ze2 = ZExtExpr::create(arg, iType);
+    ze2->attrib_set('C');
+    bindLocal(ki, state, ze2);
     break;
   }
 
   case Instruction::BitCast: {
     ref<Expr> result = eval(ki, 0, state).value;
+    result->attrib_set('C');
     bindLocal(ki, state, result);
     break;
   }
@@ -3545,7 +3559,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   ref<Expr> res = Expr::createTempRead(array, e->getWidth());
   ref<Expr> eq = NotOptimizedExpr::create(EqExpr::create(e, res));
   (*debugHeapFile) << "Making symbolic: " << eq << "\n";
-  state.addConstraint(eq);
+  state.addConstraint(eq, 'W');
   return res;
 }
 
@@ -3835,10 +3849,10 @@ void Executor::executeAlloc(ExecutionState &state,
 
     // See if a *really* big value is possible. If so assume
     // malloc will fail for it, so lets fork and return 0.
-    StatePair hugeSize = 
-      fork(state, 
-           UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth())), 
-           true);
+    ref<Expr> ue = UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth()));
+    ue->attrib_set('H');
+    
+    StatePair hugeSize = fork(state, ue, true);
     
     // JV: Add edges for states
     this->trackEdges(state, hugeSize, EDGE_HEAP, "ahs");
@@ -3875,8 +3889,9 @@ void Executor::executeAlloc(ExecutionState &state,
 
   {
     if (!mo) {
-      bindLocal(target, state, 
-                ConstantExpr::alloc(0, Context::get().getPointerWidth()));
+      ref<Expr> ce = ConstantExpr::alloc(0, Context::get().getPointerWidth());
+      ce->attrib_set('H');      
+      bindLocal(target, state, ce);
     } else {
       //llvm::outs() << "Executor::executeAlloc(): Binding new object into state\n";
       ObjectState *os = bindObjectInState(state, mo, isLocal);
@@ -3885,7 +3900,10 @@ void Executor::executeAlloc(ExecutionState &state,
       } else {
         os->initializeToRandom();
       }
-      bindLocal(target, state, mo->getBaseExpr());
+
+      ref<Expr> ce = mo->getBaseExpr();
+      ce->attrib_set('H');
+      bindLocal(target, state, ce);
       
       if (reallocFrom) {
         unsigned count = std::min(reallocFrom->size, os->size);
@@ -4559,7 +4577,7 @@ bool Executor::getSymbolicSolution(const ExecutionState &state,
       if (!success) break;
       // If the particular constraint operated on in this iteration through
       // the loop isn't implied then add it to the list of constraints.
-      if (!mustBeTrue) tmp.addConstraint(*pi);
+      if (!mustBeTrue) tmp.addConstraint(*pi, 'R');
     }
     if (pi!=pie) break;
   }

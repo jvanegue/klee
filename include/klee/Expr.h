@@ -177,7 +177,8 @@ public:
 
 protected:  
   unsigned hashValue;
-
+  unsigned char attrib;
+  
   /// Compares `b` to `this` Expr and determines how they are ordered
   /// (ignoring their kid expressions - i.e. those returned by `getKid()`).
   ///
@@ -203,7 +204,7 @@ protected:
   virtual int compareContents(const Expr &b) const = 0;
 
 public:
-  Expr() : refCount(0) { Expr::count++; }
+  Expr() : refCount(0), attrib('U') { Expr::count++; }
   virtual ~Expr() { Expr::count--; } 
 
   virtual Kind getKind() const = 0;
@@ -217,6 +218,10 @@ public:
   /// dump - Print the expression to stderr.
   void dump() const;
 
+  // Return Expr attribute (used for debug only)
+  unsigned char attrib_get() { return (attrib); }
+  void		attrib_set(unsigned char attr) { attrib = attr; }
+  
   /// Returns the pre-computed hash of the current expression
   virtual unsigned hash() const { return hashValue; }
 

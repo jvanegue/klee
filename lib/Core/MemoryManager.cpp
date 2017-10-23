@@ -132,7 +132,10 @@ MemoryObject *MemoryManager::allocateWithSymbolicSize(ref<Expr> size, uint64_t s
   uint64_t host_address = 0;
   host_address = (uint64_t)malloc(size_lower_bound);
   if (!host_address)
-    return 0;
+    {
+      llvm::outs() << "allocateWithSymbolicSize: Unable to malloc of size lower bound " << size_lower_bound << "\n";
+      return 0;
+    }
   ++stats::allocations;
   MemoryObject *res = new MemoryObject(host_address, size_lower_bound, isLocal, isGlobal, false,
                                        allocSite, this);

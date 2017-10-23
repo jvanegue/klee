@@ -63,7 +63,7 @@ void SeedInfo::patchSeed(const ExecutionState &state,
   std::vector< ref<Expr> > required(state.constraints.begin(),
                                     state.constraints.end());
   ExecutionState tmp(required);
-  tmp.addConstraint(condition);
+  tmp.addConstraint(condition, 'S');
 
   // Try and patch direct reads first, this is likely to resolve the
   // problem quickly and avoids long traversal of all seed
@@ -107,9 +107,9 @@ void SeedInfo::patchSeed(const ExecutionState &state,
         it2->second[i] = value->getZExtValue(8);
         tmp.addConstraint(EqExpr::create(read, 
                                          ConstantExpr::alloc(it2->second[i], 
-                                                             Expr::Int8)));
+                                                             Expr::Int8)), 'S');
       } else {
-        tmp.addConstraint(isSeed);
+        tmp.addConstraint(isSeed, 'S');
       }
     }
   }
@@ -144,9 +144,9 @@ void SeedInfo::patchSeed(const ExecutionState &state,
         it->second[i] = value->getZExtValue(8);
         tmp.addConstraint(EqExpr::create(read, 
                                          ConstantExpr::alloc(it->second[i], 
-                                                             Expr::Int8)));
+                                                             Expr::Int8)), 'S');
       } else {
-        tmp.addConstraint(isSeed);
+        tmp.addConstraint(isSeed, 'S');
       }
     }
   }
