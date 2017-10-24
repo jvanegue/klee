@@ -75,7 +75,7 @@ public:
   }
 };
 
-bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor) {
+bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor, unsigned char attrib) {
   ConstraintManager::constraints_ty old;
   bool changed = false;
 
@@ -86,9 +86,10 @@ bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor) {
     ref<Expr> e = visitor.visit(ce);
 
     if (e!=ce) {
-      addConstraintInternal(e); // enable further reductions
+      addConstraintInternal(e, attrib); // enable further reductions
       changed = true;
     } else {
+      ce->attrib_set(attrib);
       constraints.push_back(ce);
     }
   }
@@ -125,7 +126,7 @@ ref<Expr> ConstraintManager::simplifyExpr(ref<Expr> e) const {
   return ExprReplaceVisitor2(equalities).visit(e);
 }
 
-void ConstraintManager::addConstraintInternal(ref<Expr> e) {
+void ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib) {
   // rewrite any known equalities and split Ands into different conjuncts
 
   switch (e->getKind()) {
@@ -137,8 +138,8 @@ void ConstraintManager::addConstraintInternal(ref<Expr> e) {
     // split to enable finer grained independence and other optimizations
   case Expr::And: {
     BinaryExpr *be = cast<BinaryExpr>(e);
-    addConstraintInternal(be->left);
-    addConstraintInternal(be->right);
+    addConstraintInternal(be->left, attrib);
+    addConstraintInternal(be->right, attrib);
     break;
   }
 
@@ -152,20 +153,22 @@ void ConstraintManager::addConstraintInternal(ref<Expr> e) {
       BinaryExpr *be = cast<BinaryExpr>(e);
       if (isa<ConstantExpr>(be->left)) {
 	ExprReplaceVisitor visitor(be->right, be->left);
-	rewriteConstraints(visitor);
+	rewriteConstraints(visitor, attrib);
       }
     }
+    e->attrib_set(attrib);
     constraints.push_back(e);
     break;
   }
     
   default:
+    e->attrib_set(attrib);
     constraints.push_back(e);
     break;
   }
 }
 
-void ConstraintManager::addConstraint(ref<Expr> e) {
+void ConstraintManager::addConstraint(ref<Expr> e, unsigned char attrib) {
   e = simplifyExpr(e);
-  addConstraintInternal(e);
+  addConstraintInternal(e, attrib);
 }

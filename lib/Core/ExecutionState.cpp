@@ -387,8 +387,8 @@ bool ExecutionState::merge(const ExecutionState &b) {
   constraints = ConstraintManager();
   for (std::set< ref<Expr> >::iterator it = commonConstraints.begin(), 
          ie = commonConstraints.end(); it != ie; ++it)
-    constraints.addConstraint(*it);
-  constraints.addConstraint(OrExpr::create(inA, inB));
+    constraints.addConstraint(*it, (*it)->attrib_get());
+  constraints.addConstraint(OrExpr::create(inA, inB), 'M');
 
   return true;
 }

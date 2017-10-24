@@ -43,7 +43,7 @@ public:
 
   ref<Expr> simplifyExpr(ref<Expr> e) const;
 
-  void addConstraint(ref<Expr> e);
+  void addConstraint(ref<Expr> e, unsigned char attrib);
   
   bool empty() const {
     return constraints.empty();
@@ -69,7 +69,8 @@ public:
     unsigned int cur = 1;
     for (const_iterator it = constraints.begin(); it != constraints.end(); ++it)
       {
-	os << "** Constraint " << cur << ":\n";
+	unsigned char constraint_attrib = (*it)->attrib_get();
+	os << "** " << constraint_attrib << " ** Constraint " << cur << ":\n";
 	(*it)->print(os);
 	os << "\n";
 	cur++;
@@ -80,9 +81,8 @@ private:
   std::vector< ref<Expr> > constraints;
 
   // returns true iff the constraints were modified
-  bool rewriteConstraints(ExprVisitor &visitor);
-
-  void addConstraintInternal(ref<Expr> e);
+  bool rewriteConstraints(ExprVisitor &visitor, unsigned char attrib);
+  void addConstraintInternal(ref<Expr> e, unsigned char attrib);
 };
 
 }
