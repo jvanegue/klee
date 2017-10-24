@@ -593,7 +593,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
 
   Executor::StatePair zeroSize = executor.fork(state, 
                                                Expr::createIsZero(size), 
-                                               true);
+                                               true, 'Y');
 
   // JV: Add edges for states
   executor.trackEdges(state, zeroSize, Executor::EDGE_HEAP, "zsra");
@@ -604,7 +604,7 @@ void SpecialFunctionHandler::handleRealloc(ExecutionState &state,
   if (zeroSize.second) { // size != 0
     Executor::StatePair zeroPointer = executor.fork(*zeroSize.second, 
                                                     Expr::createIsZero(address), 
-                                                    true);
+                                                    true, 'Z');
 
     // JV: Add edges for states
     executor.trackEdges(*zeroSize.second, zeroPointer, Executor::EDGE_HEAP, "zpra");

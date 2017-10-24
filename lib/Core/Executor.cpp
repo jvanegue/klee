@@ -855,7 +855,8 @@ void Executor::initializeGlobals(ExecutionState &state) {
 
 void Executor::branch(ExecutionState &state, 
                       const std::vector< ref<Expr> > &conditions,
-                      std::vector<ExecutionState*> &result) {
+                      std::vector<ExecutionState*> &result,
+		      unsigned char attrib) {
   TimerStatIncrementer timer(stats::forkTime);
   unsigned N = conditions.size();
   assert(N);
@@ -943,7 +944,7 @@ void Executor::branch(ExecutionState &state,
 
   for (unsigned i=0; i<N; ++i)
     if (result[i])
-      addConstraint(*result[i], conditions[i], 'B');
+      addConstraint(*result[i], conditions[i], attrib);
 }
 
 Executor::StatePair 
@@ -975,7 +976,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, un
       bool success = solver->getValue(current, condition, value);
       assert(success && "FIXME: Unhandled solver failure");
       (void) success;
-      addConstraint(current, EqExpr::create(value, condition), 'P');
+      addConstraint(current, EqExpr::create(value, condition), attrib);
       condition = value;
     }
   }
@@ -1006,10 +1007,10 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, un
         // add constraints
         if(branch) {
           res = Solver::True;
-          addConstraint(current, condition, 'B');
+          addConstraint(current, condition, 'E');
         } else  {
           res = Solver::False;
-          addConstraint(current, Expr::createIsZero(condition), 'B');
+          addConstraint(current, Expr::createIsZero(condition), 'E');
         }
       }
     } else if (res==Solver::Unknown) {
@@ -1103,7 +1104,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, un
 
     falseState = trueState->branch();
 
-    // JV: added
+    // JV: added for statistics purpose
     statsTracker->incNumFork();
     
     addedStates.push_back(falseState);
@@ -1165,8 +1166,8 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, un
       }
     }
 
-    addConstraint(*trueState, condition, 'B');
-    addConstraint(*falseState, Expr::createIsZero(condition), 'B');
+    addConstraint(*trueState, condition, attrib);
+    addConstraint(*falseState, Expr::createIsZero(condition), attrib);
 
     // Kinda gross, do we even really still want this option?
     if (MaxDepth && MaxDepth<=trueState->depth) {
@@ -1387,7 +1388,7 @@ void Executor::executeGetValue(ExecutionState &state,
 
     std::vector<ExecutionState*> branches;
     
-    branch(state, conditions, branches);
+    branch(state, conditions, branches, 'V');
     
     std::vector<ExecutionState*>::iterator bit = branches.begin();
     for (std::set< ref<Expr> >::iterator vit = values.begin(), 
@@ -2056,7 +2057,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         conditions.push_back(branchTargets[*it]);
       }
       std::vector<ExecutionState*> branches;
-      branch(state, conditions, branches);
+      branch(state, conditions, branches, 'T');
 
       std::vector<ExecutionState*>::iterator bit = branches.begin();
       for (std::vector<BasicBlock *>::iterator it = bbOrder.begin(),
@@ -2264,7 +2265,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         bool success = solver->getValue(*free, v, value);
         assert(success && "FIXME: Unhandled solver failure");
         (void) success;
-        StatePair res = fork(*free, EqExpr::create(v, value), true);
+        StatePair res = fork(*free, EqExpr::create(v, value), true, 'I');
 
 	// JV: Add edges for states
 	this->trackEdges(*free, res, Executor::EDGE_HEAP, "ctarget");
@@ -3839,10 +3840,8 @@ void Executor::executeAlloc(ExecutionState &state,
   } else /* When the size is symbolic */
   {
     
-    llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
-
-    //llvm::outs() << "PRINT CONSTRAINTS at SYMBOLIC MALLOC \n";
-    //state.constraints.print(llvm::outs());
+    llvm::outs() << " [*] Found ALLOC with SYMSIZE: printing contraints: \n";
+    state.constraints.print(llvm::outs());
     
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
@@ -3852,7 +3851,7 @@ void Executor::executeAlloc(ExecutionState &state,
     ref<Expr> ue = UltExpr::create(size, ConstantExpr::alloc(1<<30, size->getWidth()));
     ue->attrib_set('H');
     
-    StatePair hugeSize = fork(state, ue, true);
+    StatePair hugeSize = fork(state, ue, true, 'H');
     
     // JV: Add edges for states
     this->trackEdges(state, hugeSize, EDGE_HEAP, "ahs");
@@ -3867,7 +3866,7 @@ void Executor::executeAlloc(ExecutionState &state,
     //llvm::outs() << "Executor::executeAlloc(): hugeSize.first = " << hugeSize.first << "\n";
     if (!hugeSize.first) // Symbolic size can only be huge
       {
-	klee_warning("Found klee state where symbolic size can only be huge, suspicious (should never happen)\n");
+	klee_warning("Found state where size can only be huge, suspicious (should never happen)\n");
 	return;
       }
     assert(hugeSize.first);
@@ -3885,8 +3884,20 @@ void Executor::executeAlloc(ExecutionState &state,
     mo = memory->allocateWithSymbolicSize(size, lower_bound, isLocal, false, state.prevPC->inst);
     mo->guest_address_set(state.addressSpace.getFreeMemchunkAtGuest());
     //llvm::outs() << "Executor::executeAlloc(): allocated at address: " << mo->guest_address() << "; size: " << mo->size << "\n";
-  }
 
+    if (hugeSize.first)
+      {
+	llvm::outs() << " [*] Printing constraints after executeAlloc (left) : \n";
+	hugeSize.first->constraints.print(llvm::outs());
+      }
+    if (hugeSize.second)
+      {
+	llvm::outs() << " [*] Printing constraints after executeAlloc (left) : \n";
+	hugeSize.second->constraints.print(llvm::outs());
+      }
+    exit(0);
+  }
+  
   {
     if (!mo) {
       ref<Expr> ce = ConstantExpr::alloc(0, Context::get().getPointerWidth());
@@ -3924,7 +3935,7 @@ void Executor::executeAlloc(ExecutionState &state,
 void Executor::executeFree(ExecutionState &state,
                            ref<Expr> address,
                            KInstruction *target) {
-  StatePair zeroPointer = fork(state, Expr::createIsZero(address), true);
+  StatePair zeroPointer = fork(state, Expr::createIsZero(address), true, 'Z');
 
   // JV: Add edges for states
   this->trackEdges(state, zeroPointer, EDGE_HEAP, "zfp");
@@ -3970,7 +3981,7 @@ void Executor::resolveExact(ExecutionState &state,
        it != ie; ++it) {
     ref<Expr> inBounds = EqExpr::create(p, it->first->getBaseExpr());
     
-    StatePair branches = fork(*unbound, inBounds, true);
+    StatePair branches = fork(*unbound, inBounds, true, 'X');
 
     // JV: Add edges for states
     this->trackEdges(*unbound, branches, EDGE_HEAP, "rslvxct");

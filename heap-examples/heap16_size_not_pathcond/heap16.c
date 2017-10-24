@@ -9,7 +9,8 @@ int main(int argc, char *argv[])
 {
   //if (argc != 2) return (-1);
   unsigned int malloc_size = atoi(argv[1]);
-  klee_make_symbolic(&malloc_size, sizeof(malloc_size), "testsym");
+  //klee_make_symbolic(&malloc_size, sizeof(malloc_size), "testsym");
+  
   if (malloc_size < 100000 && malloc_size > 65900)
     {
       //  printf("good path malloc size = %u \n", malloc_size);
