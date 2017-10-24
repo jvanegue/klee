@@ -3562,8 +3562,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
    bool isGlobal = mo->isGlobal;
    bool isLocal = mo->isLocal;
 
-   if (isLocal != SaidIsLocal)
-     klee_warning("Executor::bindObjectInState: isLocal and SaidIsLocal disagree (inconsistent object state)");
+   //if (isLocal != SaidIsLocal)
+   //klee_warning("Executor::bindObjectInState: isLocal and SaidIsLocal disagree "
+   //		  "(inconsistent object state)");
    if (isLocal == true && isGlobal == true)
      klee_warning("Object is both local and global (inconsistent object state)");
    
@@ -3819,16 +3820,15 @@ void Executor::executeAlloc(ExecutionState &state,
       mo = memory->allocate(CE->getZExtValue(), isLocal, false,
 			    state.prevPC->inst);
 
-      llvm::outs() << " FOUND MALLOC WITH CONCRETE SIZE\n";
+      //llvm::outs() << " FOUND MALLOC WITH CONCRETE SIZE\n";
       
   } else /* When the size is symbolic */
   {
     
     llvm::outs() << " FOUND MALLOC WITH SYMBOLIC SIZE\n";
 
-    llvm::outs() << "PRINT CONSTRAINTS at SYMBOLIC MALLOC \n";
-
-    state.constraints.print(llvm::outs());
+    //llvm::outs() << "PRINT CONSTRAINTS at SYMBOLIC MALLOC \n";
+    //state.constraints.print(llvm::outs());
     
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
