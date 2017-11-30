@@ -3840,8 +3840,8 @@ void Executor::executeAlloc(ExecutionState &state,
   } else /* When the size is symbolic */
   {
     
-    llvm::outs() << " [*] Found ALLOC with SYMSIZE: printing contraints: \n";
-    state.constraints.print(llvm::outs());
+    //llvm::outs() << " [*] Found ALLOC with SYMSIZE: printing contraints: \n";
+    //state.constraints.print(llvm::outs());
     
     uint64_t lower_bound = INT_MAX;
     //llvm::outs() << "Executor::executeAlloc(): Received an alloc request with symbolic size.\n";
