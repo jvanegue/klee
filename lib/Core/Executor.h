@@ -100,6 +100,15 @@ public:
     virtual void run() = 0;
   };
 
+  typedef struct    s_transfer
+  {
+    std::string	   srcfct;
+    std::string    dstfct;
+    int		   srcpos;
+    int		   dstpos;
+  }		   transfer_t;
+
+  typedef std::map<std::string,transfer_t>	     TransferStubs;
   typedef std::map<std::string,int>		     SymbolicStubs;
   typedef std::pair<ExecutionState*,ExecutionState*> StatePair;
   typedef const std::pair<std::string,std::string>   StringPair;
@@ -157,6 +166,7 @@ private:
   EdgeMap			SymEdges;
   EdgeMap			ControlEdges;
   SymbolicStubs			symStubs;
+  TransferStubs			transStubs;
   
   /**********************/
   
@@ -231,6 +241,9 @@ private:
 
   // File to print heap debug information
   llvm::raw_ostream *debugHeapFile;
+  
+  // File where constraints are persisted
+  llvm::raw_ostream *constrTransFile;
   
   // @brief Buffer used by logBuffer
   std::string debugBufferString;
@@ -476,6 +489,7 @@ private:
   void doDumpEdges(); // XXX: HKLEE
   void doDumpViolationState(ExecutionState& state, std::string label);
   void SymbolicStubsRegister();
+  void TransferStubsRegister();
   
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,

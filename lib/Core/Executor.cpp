@@ -369,6 +369,19 @@ void	Executor::SymbolicStubsRegister() {
   symStubs["rand"] = 0;
 }
 
+/* HKLEE: Persist/Reload pairs for constraint transfer */
+void	Executor::TransferStubsRegister() {
+  transfer_t	trans;
+
+  llvm::outs() << "Registering Transfer functions... \n";
+  
+  trans.srcfct = "kv_write";
+  trans.dstfct = "kv_read";
+  trans.srcpos = 2;
+  trans.dstpos = 2;
+  transStubs["kv_read"] = trans;
+  transStubs["kv_write"] = trans;
+}
 
 Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     InterpreterHandler *ih)
@@ -410,6 +423,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
       interpreterHandler->getOutputFilename("instructions.txt");
     std::string heap_debug_file_name =
       interpreterHandler->getOutputFilename("heapdebug.txt");
+    std::string persist_file_name =
+      interpreterHandler->getOutputFilename("persist.txt");      
     
     std::string ErrorInfo;
 #ifdef HAVE_ZLIB_H
@@ -428,17 +443,24 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
     debugHeapFile = new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo,
                                              llvm::sys::fs::OpenFlags::F_Text);
 
+    constrTransFile = new llvm::raw_fd_ostream(persist_file_name.c_str(), ErrorInfo,
+					       llvm::sys::fs::OpenFlags::F_Text);
+    
+
 #else
     debugInstFile =
         new llvm::raw_fd_ostream(debug_file_name.c_str(), ErrorInfo);
     debugHeapFile =
       new llvm::raw_fd_ostream(heap_debug_file_name.c_str(), ErrorInfo);
+    constrTransFile =
+      new llvm::raw_fd_ostream(persist_file_name.c_str(), ErrorInfo);
     
 #endif
 #ifdef HAVE_ZLIB_H
     } else {
       debugInstFile = new compressed_fd_ostream((debug_file_name + ".gz").c_str(), ErrorInfo);
       debugHeapFile = new compressed_fd_ostream((heap_debug_file_name + ".gz").c_str(), ErrorInfo);
+      constrTransFile = new compressed_fd_ostream((persist_file_name + ".gz").c_str(), ErrorInfo);
     }
 #endif
     if (ErrorInfo != "") {
@@ -446,7 +468,8 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
                  ErrorInfo.c_str());
     }
 
-    SymbolicStubsRegister();    
+    SymbolicStubsRegister();
+    TransferStubsRegister();
 }
 
 
@@ -507,6 +530,11 @@ Executor::~Executor() {
   if (debugHeapFile) {
     delete debugHeapFile;
   }
+
+  if (constrTransFile) {
+    delete constrTransFile;
+  }
+  
 }
 
 
@@ -2086,12 +2114,38 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     unsigned numArgs = cs.arg_size();
     Value *fp = cs.getCalledValue();
     Function *f = getTargetFunction(fp, state);
-
+    
     /**************/
     /* Track control flow edge to graph at termination time */
     Function *fparent = i->getParent()->getParent();
     std::string fct_src_name = (fparent == NULL ? "unknown_fsrc" : fparent->getName());
     std::string fct_dst_name = (f == NULL ? "unknown_fdst" : f->getName());
+
+    /* Transfer function for constraints */
+    //llvm::outs() << "TESTING FOR TRANSFER STUB WITH FNAME " << fct_dst_name << " \n";
+
+    unsigned int mode = 0;
+    bool isTransferStub = (transStubs.find(fct_dst_name) != transStubs.end());
+    transfer_t trans;
+    if (isTransferStub)
+      {
+	llvm::outs() << "FOUND transfer stub! \n";
+	
+	trans = transStubs[fct_dst_name.c_str()];
+	
+	if (!strcmp(fct_dst_name.c_str(), trans.srcfct.c_str()))
+	  {
+	    llvm::outs() << "Found Persisted constraints SOURCE " << fct_dst_name << "\n";
+	    mode = 1;
+	    //state.constraints.print(llvm::outs());
+	  }
+
+	else if (!strcmp(fct_dst_name.c_str(), trans.dstfct.c_str()))
+	  {
+	    mode = 2;
+	    llvm::outs() << "Found Persisted constraints DESTINATION " << fct_dst_name << "\n";
+	  }
+      }
 
     // Only print the part of the state space that is outside klee 
     if (fct_dst_name.find("klee") == std::string::npos &&
@@ -2123,7 +2177,60 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     arguments.reserve(numArgs);
 
     for (unsigned j=0; j<numArgs; ++j)
-      arguments.push_back(eval(ki, j+1, state).value);
+      {
+	ref<Expr> e = eval(ki, j+1, state).value;
+	arguments.push_back(e);
+	
+	/*
+	  typedef struct    s_transfer
+	  {
+	  std::string	   srcfct;
+	  std::string    dstfct;
+	  int		   srcpos;
+	  int		   dstpos;
+	  }		   transfer_t;
+	*/
+	
+	// We are exporting constraints
+	if (mode == 1)
+	  {
+	    if (j + 1 == trans.srcpos)
+	      {		
+		llvm::outs() << "Found SOURCE value by position " << trans.srcpos << " in function " << fct_dst_name << "\n";
+		ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
+		if (CE == NULL)
+		  {
+		    llvm::outs() << "Argument is not constant!\n";
+		  }
+		else
+		  {
+		    llvm::outs() << "Argument is constant! Value: ";
+		    CE->print(llvm::outs());
+		    CE->print(*constrTransFile);
+		    llvm::outs() << "\n";
+		  }
+
+		//state.constraints.print((*constrTransFile));
+	      }
+	  }
+	else if (mode == 2)
+	  {
+	    if (j + 1 == trans.dstpos)
+	      {
+		llvm::outs() << "Found DESTINATION value by position " << trans.dstpos << " in function " << fct_dst_name << "\n";
+		ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
+		if (CE == NULL)
+		  {
+		    llvm::outs() << "Argument is not constant!\n";
+		  }
+		else
+		  {
+		    llvm::outs() << "Argument is constant!\n";
+		  }
+		//state.constraints.print((*constrTransFile));
+	      }	    
+	  }
+      }
 
     std::vector<bool> argAttrs;
     
