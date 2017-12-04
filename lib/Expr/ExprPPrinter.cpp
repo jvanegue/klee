@@ -379,6 +379,7 @@ public:
         // or they are (base + offset) and base will get printed with
         // a declaration.
         if (PCMultibyteReads && e->getKind() == Expr::Concat) {
+	  
 	  const ReadExpr *base = hasOrderedReads(e, -1);
 	  int isLSB = (base != NULL);
 	  if (!isLSB)

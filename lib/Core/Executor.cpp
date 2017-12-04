@@ -2194,6 +2194,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	// We are exporting constraints
 	if (mode == 1)
 	  {
+
+	    llvm::outs() << "mode = 1 - printing expr (arg = " << j << ") width = " << e->getWidth() << "\n";
+	    e->print(llvm::outs());
+	    llvm::outs() << "\n";
+	    
 	    if (j + 1 == trans.srcpos)
 	      {		
 		llvm::outs() << "Found SOURCE value by position " << trans.srcpos << " in function " << fct_dst_name << "\n";
@@ -2204,17 +2209,60 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 		  }
 		else
 		  {
-		    llvm::outs() << "Argument is constant! Value: ";
+		    llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
 		    CE->print(llvm::outs());
 		    CE->print(*constrTransFile);
 		    llvm::outs() << "\n";
+
+		    ObjectPair op;
+		    bool success;
+		    solver->setTimeout(coreSolverTimeout);
+		    success = state.addressSpace.resolveOne(cast<ConstantExpr>(CE), op);
+		    solver->setTimeout(0);
+		    assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
+		    //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+		    const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
+		    ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
+		    //ref<Expr> second_byte = os->read(1, 8); // at offset 1, read an 8-bit element.
+		    //ref<Expr> third_byte = os->read(2, 8); // at offset 2, read an 8-bit element.
+		    llvm::outs() << "\n NOW PRINT THREE BYTES \n";
+		    llvm::outs() << "BYTE 1: \n";
+		    first_byte->print(llvm::outs());
+		    ConstantExpr *CE = dyn_cast<ConstantExpr>(first_byte);
+		    if (CE)
+		      {
+			llvm::outs() << "\n ZExtValue BYTE 1: \n";					    
+			unsigned char c = CE->getZExtValue();
+			llvm::outs() << c << "\n";
+		      }
+		    else
+		      llvm::outs() << "First byte NOT constant \n";
+		    
+		    //llvm::outs() << "\n BYTE 2: \n";
+		    //second_byte->print(llvm::outs());
+		    //llvm::outs() << "\n BYTE 3: \n";
+		    //third_byte->print(llvm::outs());
+		    //llvm::outs() << "\n DONE \n";
+		    
+		    //char *str = (char *) CE->getZExtValue(CE->getWidth());
+		    //llvm::outs() << "String byte 1 = " << str[0] << " ATTACH ME NOW!!!!!!! \n";
+		    //sleep(100);
+
+		    
+		    
 		  }
 
 		//state.constraints.print((*constrTransFile));
 	      }
 	  }
+
+	// We are importing constraints
 	else if (mode == 2)
 	  {
+	    llvm::outs() << "mode = 2 - printing expr (arg = " << j << ")\n";
+	    e->print(llvm::outs());
+	    llvm::outs() << "\n";
+		    
 	    if (j + 1 == trans.dstpos)
 	      {
 		llvm::outs() << "Found DESTINATION value by position " << trans.dstpos << " in function " << fct_dst_name << "\n";

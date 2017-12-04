@@ -15,7 +15,8 @@ comp:
 run:
 	@echo Calling kv-write example
 	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
-	@echo Calling kv-read example
+
+disabled: @echo Calling kv-read example
 	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3
 	@dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
 	@dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
