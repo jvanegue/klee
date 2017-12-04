@@ -309,6 +309,10 @@ private:
   void trackEdges(ExecutionState& orig_state, ExecutionState& dest_state, int edge_type, std::string label);
   void trackEdges(ExecutionState& orig_state, StatePair& spair, int edge_type, std::string label);
 
+  void transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
+  void ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
+  void ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
+  
   
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.

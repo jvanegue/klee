@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
     return (-1);
   char *key = argv[1];
   int klen = strlen(key);
-  char *value = argv[2];
+  char *value = "val";
   int len = strlen(value);
   if (klen == 0 || len < 3)
     return (-1);

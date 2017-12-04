@@ -1759,6 +1759,127 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
 }
 
 
+// We are exporting constraints
+void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func)
+{
+
+  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
+  
+  llvm::outs() << "\n---------\n";
+  llvm::outs() << "EXPORT CONSTAINT: printing expr (argnum " << j << ") width = " << e->getWidth() << "\n";
+  e->print(llvm::outs());
+  llvm::outs() << "\n";
+
+  /*
+    for (unsigned j=0; j<numArgs; ++j)
+      {
+	ref<Expr> e = eval(ki, j+1, state).value;
+	arguments.push_back(e);
+      }
+  */
+  
+  /*
+    typedef struct    s_transfer
+    {
+    std::string	   srcfct;
+    std::string    dstfct;
+    int		   srcpos;
+    int		   dstpos;
+    }		   transfer_t;
+  */
+
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
+  if (CE == NULL)
+    {
+      llvm::outs() << "Argument is not constant!\n";
+    }
+  else
+    {
+      llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
+      CE->print(llvm::outs());
+      CE->print(*constrTransFile);
+      llvm::outs() << "\n";
+      
+      ObjectPair op;
+      bool success;
+      solver->setTimeout(coreSolverTimeout);
+      success = state.addressSpace.resolveOne(cast<ConstantExpr>(CE), op);
+      solver->setTimeout(0);
+      assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
+      //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+      const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
+      ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
+      //ref<Expr> second_byte = os->read(1, 8); // at offset 1, read an 8-bit element.
+      //ref<Expr> third_byte = os->read(2, 8); // at offset 2, read an 8-bit element.
+      //llvm::outs() << "\n NOW PRINT ONE BYTE \n";
+      llvm::outs() << "BYTE 1: \n";
+      first_byte->print(llvm::outs());
+      llvm::outs() << "\n";
+      ConstantExpr *CE = dyn_cast<ConstantExpr>(first_byte);
+      if (CE)
+	{
+	  llvm::outs() << "\n ZExtValue BYTE 1: \n";					    
+	  unsigned char c = CE->getZExtValue();
+	  llvm::outs() << c << "\n";
+	}
+      else
+	llvm::outs() << "First byte NOT constant \n";
+      llvm::outs() << "---------\n";
+    }
+}
+
+
+// We are importing constraints
+void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func)
+{
+  llvm::outs() << "mode = 2 - printing expr (arg = " << j << ")\n";
+  e->print(llvm::outs());
+  llvm::outs() << "\n";
+  
+  if (j + 1 == trans.dstpos)
+    {
+      llvm::outs() << "Found DESTINATION value by position " << trans.dstpos << " in function " << parent_func << "\n";
+      ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
+      if (CE == NULL)
+	{
+	  llvm::outs() << "Argument is not constant!\n";
+	}
+      else
+	{
+	  llvm::outs() << "Argument is constant!\n";
+	}
+      //state.constraints.print((*constrTransFile));
+    }	    
+}
+
+
+// Transfer constraints
+void Executor::transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func)
+{
+  int mode = 0;
+  
+  if (parent_func == trans.srcfct)
+    {
+      llvm::outs() << "Found Persisted constraints SOURCE " << parent_func << "\n";
+      mode = 1;
+      //state.constraints.print(llvm::outs());
+    }
+  
+  else if (!strcmp(fct_dst_name.c_str(), trans.dstfct.c_str()))
+    {
+      llvm::outs() << "Found Persisted constraints DESTINATION " << parent_func << "\n";
+      mode = 2;
+    }
+
+  if (mode == 1)
+    ConstraintsStore(state, ki, trans, parent_func);
+  else
+    ConstraintsLoad(state, ki, trans, parent_func);
+}
+
+
+
+
 void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   Instruction *i = ki->inst;
 
@@ -2130,21 +2251,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     if (isTransferStub)
       {
 	llvm::outs() << "FOUND transfer stub! \n";
-	
 	trans = transStubs[fct_dst_name.c_str()];
-	
-	if (!strcmp(fct_dst_name.c_str(), trans.srcfct.c_str()))
-	  {
-	    llvm::outs() << "Found Persisted constraints SOURCE " << fct_dst_name << "\n";
-	    mode = 1;
-	    //state.constraints.print(llvm::outs());
-	  }
-
-	else if (!strcmp(fct_dst_name.c_str(), trans.dstfct.c_str()))
-	  {
-	    mode = 2;
-	    llvm::outs() << "Found Persisted constraints DESTINATION " << fct_dst_name << "\n";
-	  }
       }
 
     // Only print the part of the state space that is outside klee 
@@ -2180,106 +2287,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       {
 	ref<Expr> e = eval(ki, j+1, state).value;
 	arguments.push_back(e);
-	
-	/*
-	  typedef struct    s_transfer
-	  {
-	  std::string	   srcfct;
-	  std::string    dstfct;
-	  int		   srcpos;
-	  int		   dstpos;
-	  }		   transfer_t;
-	*/
-	
-	// We are exporting constraints
-	if (mode == 1)
-	  {
-
-	    llvm::outs() << "mode = 1 - printing expr (arg = " << j << ") width = " << e->getWidth() << "\n";
-	    e->print(llvm::outs());
-	    llvm::outs() << "\n";
-	    
-	    if (j + 1 == trans.srcpos)
-	      {		
-		llvm::outs() << "Found SOURCE value by position " << trans.srcpos << " in function " << fct_dst_name << "\n";
-		ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
-		if (CE == NULL)
-		  {
-		    llvm::outs() << "Argument is not constant!\n";
-		  }
-		else
-		  {
-		    llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
-		    CE->print(llvm::outs());
-		    CE->print(*constrTransFile);
-		    llvm::outs() << "\n";
-
-		    ObjectPair op;
-		    bool success;
-		    solver->setTimeout(coreSolverTimeout);
-		    success = state.addressSpace.resolveOne(cast<ConstantExpr>(CE), op);
-		    solver->setTimeout(0);
-		    assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
-		    //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
-		    const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
-		    ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
-		    //ref<Expr> second_byte = os->read(1, 8); // at offset 1, read an 8-bit element.
-		    //ref<Expr> third_byte = os->read(2, 8); // at offset 2, read an 8-bit element.
-		    llvm::outs() << "\n NOW PRINT THREE BYTES \n";
-		    llvm::outs() << "BYTE 1: \n";
-		    first_byte->print(llvm::outs());
-		    ConstantExpr *CE = dyn_cast<ConstantExpr>(first_byte);
-		    if (CE)
-		      {
-			llvm::outs() << "\n ZExtValue BYTE 1: \n";					    
-			unsigned char c = CE->getZExtValue();
-			llvm::outs() << c << "\n";
-		      }
-		    else
-		      llvm::outs() << "First byte NOT constant \n";
-		    
-		    //llvm::outs() << "\n BYTE 2: \n";
-		    //second_byte->print(llvm::outs());
-		    //llvm::outs() << "\n BYTE 3: \n";
-		    //third_byte->print(llvm::outs());
-		    //llvm::outs() << "\n DONE \n";
-		    
-		    //char *str = (char *) CE->getZExtValue(CE->getWidth());
-		    //llvm::outs() << "String byte 1 = " << str[0] << " ATTACH ME NOW!!!!!!! \n";
-		    //sleep(100);
-
-		    
-		    
-		  }
-
-		//state.constraints.print((*constrTransFile));
-	      }
-	  }
-
-	// We are importing constraints
-	else if (mode == 2)
-	  {
-	    llvm::outs() << "mode = 2 - printing expr (arg = " << j << ")\n";
-	    e->print(llvm::outs());
-	    llvm::outs() << "\n";
-		    
-	    if (j + 1 == trans.dstpos)
-	      {
-		llvm::outs() << "Found DESTINATION value by position " << trans.dstpos << " in function " << fct_dst_name << "\n";
-		ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
-		if (CE == NULL)
-		  {
-		    llvm::outs() << "Argument is not constant!\n";
-		  }
-		else
-		  {
-		    llvm::outs() << "Argument is constant!\n";
-		  }
-		//state.constraints.print((*constrTransFile));
-	      }	    
-	  }
       }
 
+    // It was found that this function defines a constraint transfer
+    // Pass hand to constraint transfer code
+    if (isTransferStub)
+      transferConstraints(ki, state, trans, fct_dst_name);
+
+    // Continue Call logic as normal
     std::vector<bool> argAttrs;
     
     if (f && (symStubs.find(f->getName()) != symStubs.end()))
