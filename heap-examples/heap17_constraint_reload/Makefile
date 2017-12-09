@@ -14,7 +14,8 @@ comp:
 
 run:
 	@echo Calling kv-write example
-	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
+	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3 > klee.gdb
+	gdb `which klee` -x klee.gdb
 
 disabled: @echo Calling kv-read example
 	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3

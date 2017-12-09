@@ -29,6 +29,7 @@
 #include <string>
 #include <map>
 #include <set>
+#include <list>
 
 struct KTest;
 
@@ -104,8 +105,26 @@ public:
   {
     std::string	   srcfct;
     std::string    dstfct;
-    int		   srcpos;
-    int		   dstpos;
+    unsigned int   srckey;
+    unsigned int   dstkey;
+    unsigned int   srcpos;
+    unsigned int   dstpos;
+    unsigned int   szpos;
+    
+    enum TRANSFER_TYPE
+      {
+	UNKNOWN    = 0,
+	VAR_BYTE   = 1,
+	VAR_SHORT  = 2,
+	VAR_INT    = 3,
+	VAR_UINT64 = 4,
+	VAR_STR    = 5
+      };
+    int		   type;
+    
+    bool	   symbolic;
+    bool	   symbolic_size;
+    bool	   array;
   }		   transfer_t;
 
   typedef std::map<std::string,transfer_t>	     TransferStubs;
@@ -115,6 +134,12 @@ public:
   typedef std::pair<bool,std::string>		     StateDesc;
   typedef std::map<StringPair,std::string>	     EdgeMap;
   typedef std::map<std::string,StateDesc>	     NodeMap;
+  typedef ref<Expr>				     RefExpr;
+  typedef std::vector<RefExpr>			     ExprList;
+  typedef std::pair<const MemoryObject*, const Array*> Symbolic;
+  typedef std::vector<Symbolic>			       SymbolicList;
+
+
   
   enum TerminateReason {
     Abort,
@@ -309,9 +334,9 @@ private:
   void trackEdges(ExecutionState& orig_state, ExecutionState& dest_state, int edge_type, std::string label);
   void trackEdges(ExecutionState& orig_state, StatePair& spair, int edge_type, std::string label);
 
-  void transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
-  void ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
-  void ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func);
+  void transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
+  void ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
+  void ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
   
   
   /// Allocate and bind a new object in a particular state. NOTE: This

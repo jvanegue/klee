@@ -106,12 +106,16 @@
 
 #include <sys/mman.h>
 
+#include <signal.h>
 #include <errno.h>
 #include <cxxabi.h>
 
+#include <sys/wait.h>
+#include <sys/types.h>
+
+
 using namespace llvm;
 using namespace klee;
-
 
 namespace {
 
@@ -377,8 +381,14 @@ void	Executor::TransferStubsRegister() {
   
   trans.srcfct = "kv_write";
   trans.dstfct = "kv_read";
+  trans.srckey = 1;
+  trans.dstkey = 1;
   trans.srcpos = 2;
   trans.dstpos = 2;
+  trans.szpos = 3;
+  trans.type = klee::Executor::s_transfer::VAR_BYTE;
+  trans.array = true;
+  trans.symbolic = false; // this may change if transfers are persisted
   transStubs["kv_read"] = trans;
   transStubs["kv_write"] = trans;
 }
@@ -1760,58 +1770,161 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
 
 
 // We are exporting constraints
-void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func)
+void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
-
-  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
+  RefExpr	src_expr;
+  RefExpr	sz_expr;
+  RefExpr	src_key;
   
-  llvm::outs() << "\n---------\n";
-  llvm::outs() << "EXPORT CONSTAINT: printing expr (argnum " << j << ") width = " << e->getWidth() << "\n";
-  e->print(llvm::outs());
-  llvm::outs() << "\n";
-
-  /*
-    for (unsigned j=0; j<numArgs; ++j)
-      {
-	ref<Expr> e = eval(ki, j+1, state).value;
-	arguments.push_back(e);
-      }
-  */
-  
-  /*
-    typedef struct    s_transfer
+  if (numArgs < trans.srcpos || numArgs < trans.szpos)
     {
-    std::string	   srcfct;
-    std::string    dstfct;
-    int		   srcpos;
-    int		   dstpos;
-    }		   transfer_t;
-  */
-
-  ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
-  if (CE == NULL)
-    {
-      llvm::outs() << "Argument is not constant!\n";
+      llvm::outs() << "Defined SOURCE API for transfer has too few parameters - returning without transfering \n";
+      return;
     }
-  else
+  
+  for (unsigned j=0; j<numArgs; ++j)
     {
-      llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
-      CE->print(llvm::outs());
-      CE->print(*constrTransFile);
-      llvm::outs() << "\n";
+      if (j+1 == trans.srcpos)
+	src_expr = eval(ki, j+1, state).value;
+      else if (j+1 == trans.szpos)
+	sz_expr = eval(ki, j+1, state).value;
+      else if (j+1 == trans.srckey)
+	src_key = eval(ki, j+1, state).value;
+    }
+  
+#define VAR_BYTE   s_transfer::VAR_BYTE
+#define VAR_INT    s_transfer::VAR_INT
+#define VAR_STR    s_transfer::VAR_STR
+#define VAR_SHORT  s_transfer::VAR_SHORT
+#define VAR_UINT64 s_transfer::VAR_UINT64
+  
+  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
+  switch (trans.type)
+    {
+    case (VAR_BYTE):
+      if (trans.array)
+	{
+	}
+      else
+	{
+	}
+      break;
       
+    case (VAR_INT):
+      if (trans.array)
+	{
+	}
+      else
+	{
+	}      
+      break;
+
+    default:
+      llvm::outs() << "Unsupported transfer type " << trans.type << "\n";
+      return;
+    };
+    
+  llvm::outs() << "\n---------\n";
+  llvm::outs() << "EXPORT CONSTAINT: printing expr (argnum " << numArgs << ") \n";
+  
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(src_expr);
+  volatile ConstantExpr *copy = (volatile ConstantExpr *) CE;
+  
+  ConstantExpr *key_CE = dyn_cast<ConstantExpr>(src_key);
+  volatile ConstantExpr *key_copy = (volatile ConstantExpr *) key_CE;
+
+  ConstantExpr *sz_CE = dyn_cast<ConstantExpr>(sz_expr);
+  volatile ConstantExpr *sz_copy = (volatile ConstantExpr *) sz_CE;
+
+  if (copy == NULL)
+    llvm::outs() << "DATA argument is not constant!\n";
+  if (key_copy == NULL)
+    llvm::outs() << "KEY argument is not constant!\n";
+  if (sz_copy == NULL)
+    llvm::outs() << "SIZE argument is not constant!\n";
+
+  // Pointer
+  /*
+  if (CE && CE->getWidth() == 64)
+    {
+      llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
       ObjectPair op;
       bool success;
       solver->setTimeout(coreSolverTimeout);
       success = state.addressSpace.resolveOne(cast<ConstantExpr>(CE), op);
       solver->setTimeout(0);
       assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
-      //const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+      const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
       const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
       ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
+      llvm::outs() << "Attach me " << getpid() << "\n";  
+      llvm::outs() << "RAISING SIGABRT \n";
+      raise(SIGABRT);
+    }
+  */
+
+  if (key_CE && key_CE->getWidth() == 64)
+    {
+      llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
+      ObjectPair op;
+      bool success;
+      solver->setTimeout(coreSolverTimeout);
+      success = state.addressSpace.resolveOne(cast<ConstantExpr>(key_CE), op);
+      solver->setTimeout(0);
+      assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
+      const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+      const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
+      ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
+
+      ReadExpr *re = dyn_cast<ReadExpr>(first_byte);
+      if (re == NULL)
+	llvm::outs() << "FIRST byte is NOT a readexpr \n";
+      
+      SymbolicList list = state.symbolics;
+      Symbolic &one = list[0];
+      Symbolic &two = list[1];
+      Symbolic &thr = list[2];
+      const MemoryObject *m1 = one.first;
+      const MemoryObject *m2 = two.first;
+      const MemoryObject *m3 = thr.first;      
+
+      unsigned int i = 1;
+      for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
+	{
+	  ref<Expr> e = *it;
+	  llvm::outs() << "\n ---[ Constraint " << i << ":\n";
+	  llvm::outs() << e;
+	  llvm::outs() << "\n ------------------- \n";
+	}
+      
+      llvm::outs() << "Attach me " << getpid() << "\n";  
+      llvm::outs() << "RAISING SIGABRT \n";
+      raise(SIGABRT);
+    }
+
+  raise(SIGABRT);
+  
+  if (sz_CE)
+    {
+      //sz_CE.getValue()
+    }
+
+  
+  /* else
+    {
+      llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
+      CE->print(llvm::outs());
+      CE->print(*constrTransFile);
+      llvm::outs() << "\n";
+
+      //llvm::outs() << "RAISING SIGABRT \n";
+      //raise(SIGABRT);
+      //copy = copy;
+
       //ref<Expr> second_byte = os->read(1, 8); // at offset 1, read an 8-bit element.
       //ref<Expr> third_byte = os->read(2, 8); // at offset 2, read an 8-bit element.
       //llvm::outs() << "\n NOW PRINT ONE BYTE \n";
+      
       llvm::outs() << "BYTE 1: \n";
       first_byte->print(llvm::outs());
       llvm::outs() << "\n";
@@ -1823,38 +1936,70 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 	  llvm::outs() << c << "\n";
 	}
       else
+      {
 	llvm::outs() << "First byte NOT constant \n";
-      llvm::outs() << "---------\n";
-    }
+	llvm::outs() << "---------\n";
+	}
+  */
+     
+  
 }
 
 
 // We are importing constraints
-void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t trans, std::string parent_func)
+void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
-  llvm::outs() << "mode = 2 - printing expr (arg = " << j << ")\n";
-  e->print(llvm::outs());
-  llvm::outs() << "\n";
-  
-  if (j + 1 == trans.dstpos)
+  RefExpr	dst_expr;
+
+  if (numArgs < trans.dstpos)
     {
-      llvm::outs() << "Found DESTINATION value by position " << trans.dstpos << " in function " << parent_func << "\n";
-      ConstantExpr *CE = dyn_cast<ConstantExpr>(e);
-      if (CE == NULL)
-	{
-	  llvm::outs() << "Argument is not constant!\n";
-	}
-      else
-	{
-	  llvm::outs() << "Argument is constant!\n";
-	}
-      //state.constraints.print((*constrTransFile));
-    }	    
+      llvm::outs() << "Defined SOURCE API for transfer has too few parameters - returning without transfering \n";
+      return;
+    }
+  
+  for (unsigned j=0; j<numArgs; ++j)
+    {
+      if (j+1 == trans.dstpos)
+	dst_expr = eval(ki, j+1, state).value;
+    }
+
+#define VAR_BYTE   s_transfer::VAR_BYTE
+#define VAR_INT    s_transfer::VAR_INT
+#define VAR_STR    s_transfer::VAR_STR
+#define VAR_SHORT  s_transfer::VAR_SHORT
+#define VAR_UINT64 s_transfer::VAR_UINT64
+
+  ConstantExpr *CE = dyn_cast<ConstantExpr>(dst_expr);
+  if (CE == NULL)
+    {
+      llvm::outs() << "Argument is not constant!\n";
+    }
+  else
+    {
+      llvm::outs() << "Argument is constant!\n";
+    }
+  
+  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
+  switch (trans.type)
+    {
+    case (VAR_BYTE):
+      llvm::outs() << "Found VAR_BYTE LOAD case \n";
+      break;
+      
+    case (VAR_INT):
+      llvm::outs() << "Found VAR_INT LOAD case \n";
+      break;
+
+    default:
+      llvm::outs() << "Unsupported LOAD transfer type " << trans.type << "\n";
+      return;
+    };
+
 }
 
 
 // Transfer constraints
-void Executor::transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func)
+void Executor::transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
   int mode = 0;
   
@@ -1865,16 +2010,16 @@ void Executor::transferConstraints(ExecutionState &state, KInstruction *ki, tran
       //state.constraints.print(llvm::outs());
     }
   
-  else if (!strcmp(fct_dst_name.c_str(), trans.dstfct.c_str()))
+  else if (!strcmp(parent_func.c_str(), trans.dstfct.c_str()))
     {
       llvm::outs() << "Found Persisted constraints DESTINATION " << parent_func << "\n";
       mode = 2;
     }
 
   if (mode == 1)
-    ConstraintsStore(state, ki, trans, parent_func);
+    ConstraintsStore(state, ki, trans, parent_func, numArgs);
   else
-    ConstraintsLoad(state, ki, trans, parent_func);
+    ConstraintsLoad(state, ki, trans, parent_func, numArgs);
 }
 
 
@@ -2232,7 +2377,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
   case Instruction::Call: {
     CallSite cs(i);
 
-    unsigned numArgs = cs.arg_size();
+    unsigned int numArgs = cs.arg_size();
     Value *fp = cs.getCalledValue();
     Function *f = getTargetFunction(fp, state);
     
@@ -2243,9 +2388,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::string fct_dst_name = (f == NULL ? "unknown_fdst" : f->getName());
 
     /* Transfer function for constraints */
-    //llvm::outs() << "TESTING FOR TRANSFER STUB WITH FNAME " << fct_dst_name << " \n";
-
-    unsigned int mode = 0;
     bool isTransferStub = (transStubs.find(fct_dst_name) != transStubs.end());
     transfer_t trans;
     if (isTransferStub)
@@ -2289,10 +2431,10 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	arguments.push_back(e);
       }
 
-    // It was found that this function defines a constraint transfer
+    // HKLEE: It was found that this function defines a constraint transfer
     // Pass hand to constraint transfer code
     if (isTransferStub)
-      transferConstraints(ki, state, trans, fct_dst_name);
+      transferConstraints(state, ki, trans, fct_dst_name, numArgs);
 
     // Continue Call logic as normal
     std::vector<bool> argAttrs;
