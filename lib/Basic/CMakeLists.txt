@@ -10,6 +10,7 @@ klee_add_component(kleeBasic
   CmdLineOptions.cpp
   ConstructSolverChain.cpp
   KTest.cpp
+  PTest.cpp
   Statistics.cpp
 )
 set(LLVM_COMPONENTS
