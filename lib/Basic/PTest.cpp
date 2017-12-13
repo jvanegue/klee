@@ -76,10 +76,11 @@ int pTest_isPTestFile(const char *path) {
   return res;
 }
 
+
 PTest *pTest_fromFile(const char *path) {
   FILE *f = fopen(path, "rb");
   PTest *res = 0;
-  unsigned i, version;
+  unsigned i;
 
   if (!f) 
     goto error;
@@ -99,12 +100,10 @@ PTest *pTest_fromFile(const char *path) {
     PTestObject *o = &res->objects[i];
     if (!read_string(f, &o->name))
       goto error;
-    if (!read_uint32(f, &o->otype))
-      goto error;
     if (!read_uint32(f, &o->numBytes))
       goto error;
-    o->bytes = (unsigned char*) malloc(o->numBytes);
-    if (fread(o->bytes, o->numBytes, 1, f)!=1)
+    o->bytes = (PTestByte*) malloc(o->numBytes * sizeof(PTestByte));
+    if (fread(o->bytes, o->numBytes * sizeof(PTestByte), 1, f)!=1)
       goto error;
   }
   fclose(f);
@@ -128,6 +127,7 @@ PTest *pTest_fromFile(const char *path) {
   return 0;
 }
 
+
 int pTest_toFile(PTest *bo, const char *path) {
   FILE *f = fopen(path, "wb");
   unsigned i;
@@ -139,14 +139,12 @@ int pTest_toFile(PTest *bo, const char *path) {
   if (!write_uint32(f, bo->numObjects))
     goto error;
   for (i=0; i<bo->numObjects; i++) {
-    KTestObject *o = &bo->objects[i];
+    PTestObject *o = &bo->objects[i];
     if (!write_string(f, o->name))
-      goto error;
-    if (!write_uint32(f, o->otype))
       goto error;
     if (!write_uint32(f, o->numBytes))
       goto error;
-    if (fwrite(o->bytes, o->numBytes, 1, f)!=1)
+    if (fwrite(o->bytes, o->numBytes * sizeof(PTestByte), 1, f)!=1)
       goto error;
   }
   fclose(f);

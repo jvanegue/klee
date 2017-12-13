@@ -3,8 +3,9 @@
 #include <stdlib.h>
 #include <klee/klee.h>
 
-int	     kv_write(char *key, char *value, int len);
-int	     kv_read(char *key, char *value, int len);
+// These functions are shimmed as their semantics is encoded in the constraint transfer functions inside KLEE
+int	     kv_write(char *key, char *value, int len) { return (0); }
+int	     kv_read(char *key, char *value, int len)  { return (0); }
 
 int main(int argc, char *argv[])
 {

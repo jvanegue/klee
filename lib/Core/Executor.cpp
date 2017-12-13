@@ -37,6 +37,7 @@
 #include "klee/util/GetElementPtrTypeIterator.h"
 #include "klee/Config/Version.h"
 #include "klee/Internal/ADT/KTest.h"
+#include "klee/Internal/ADT/PTest.h"
 #include "klee/Internal/ADT/RNG.h"
 #include "klee/Internal/Module/Cell.h"
 #include "klee/Internal/Module/InstructionInfoTable.h"
@@ -99,17 +100,16 @@
 #include <algorithm>
 #include <iomanip>
 #include <iosfwd>
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <vector>
 #include <string>
 
 #include <sys/mman.h>
-
 #include <signal.h>
 #include <errno.h>
 #include <cxxabi.h>
-
 #include <sys/wait.h>
 #include <sys/types.h>
 
@@ -1772,6 +1772,8 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
 // We are exporting constraints
 void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
+  static std::map<std::string,int> cntmap;
+  
   RefExpr	src_expr;
   RefExpr	sz_expr;
   RefExpr	src_key;
@@ -1798,7 +1800,9 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 #define VAR_SHORT  s_transfer::VAR_SHORT
 #define VAR_UINT64 s_transfer::VAR_UINT64
   
-  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
+  // XXX : we are currently supporting strings and int32 constants in transfers
+  // Types are currently hardcoded
+  /*
   switch (trans.type)
     {
     case (VAR_BYTE):
@@ -1823,28 +1827,39 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       llvm::outs() << "Unsupported transfer type " << trans.type << "\n";
       return;
     };
-    
+  */
+  
   llvm::outs() << "\n---------\n";
   llvm::outs() << "EXPORT CONSTAINT: printing expr (argnum " << numArgs << ") \n";
   
   ConstantExpr *CE = dyn_cast<ConstantExpr>(src_expr);
-  volatile ConstantExpr *copy = (volatile ConstantExpr *) CE;
-  
   ConstantExpr *key_CE = dyn_cast<ConstantExpr>(src_key);
-  volatile ConstantExpr *key_copy = (volatile ConstantExpr *) key_CE;
-
   ConstantExpr *sz_CE = dyn_cast<ConstantExpr>(sz_expr);
-  volatile ConstantExpr *sz_copy = (volatile ConstantExpr *) sz_CE;
 
+  /*
+  llvm::outs() << "\n ---[ CE     :"     << *CE << "\n";
+  llvm::outs() << "\n ---[ key_CE :" << *key_CE << "\n";
+  llvm::outs() << "\n ---[ sz_CE  :"  << *sz_CE << "\n";
+  
   if (copy == NULL)
     llvm::outs() << "DATA argument is not constant!\n";
   if (key_copy == NULL)
     llvm::outs() << "KEY argument is not constant!\n";
   if (sz_copy == NULL)
     llvm::outs() << "SIZE argument is not constant!\n";
+  */
+  
+  // The outcome of this procedure is a new PTest file
+  PTest p;
+  p.numObjects = 3;
+  p.objects = new PTestObject[p.numObjects];
+  assert(p.objects);
 
-  // Pointer
-  /*
+  // Key value (support constant or symbolic)
+  PTestObject *o1 = &p.objects[0];
+  o1->name = (char *) "data";
+  
+  // This is the value tracking
   if (CE && CE->getWidth() == 64)
     {
       llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
@@ -1856,13 +1871,36 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
       const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
       const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
-      ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
-      llvm::outs() << "Attach me " << getpid() << "\n";  
-      llvm::outs() << "RAISING SIGABRT \n";
-      raise(SIGABRT);
+      o1->numBytes = (unsigned int) mo->size;
+      o1->bytes = new PTestByte[o1->numBytes];
+      for (int idx = 0; idx < o1->numBytes; idx++)
+	{
+	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
+	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
+	  ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
+	  if (re == NULL)
+	    llvm::outs() << "CE bytes NOT a readexpr \n";
+	  else
+	    {
+	      llvm::outs() << "\n CE ReadExpr is a SYM: " << *re;
+	      o1->bytes[idx].otype = PTestByte::SYM;
+	      o1->bytes[idx].value = 0;
+	    }	  
+	  if (cre == NULL)
+	    llvm::outs() << "CE bytes NOT a constantexpr \n";
+	  else
+	    {
+	      unsigned char val8 = (unsigned char) cre->getZExtValue(8);
+	      llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
+	      o1->bytes[idx].otype = PTestByte::EQ;
+	      o1->bytes[idx].value = val8;
+	    }	  
+	}
     }
-  */
 
+  // Now track the key variable - same thing - should be factored later
+  PTestObject *o2 = &p.objects[1];
+  o2->name = (char *) "key";
   if (key_CE && key_CE->getWidth() == 64)
     {
       llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
@@ -1874,74 +1912,93 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
       const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
       const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
-      ref<Expr> first_byte = os->read(0, 8); // at offset 0, read an 32-bit element.
-
-      ReadExpr *re = dyn_cast<ReadExpr>(first_byte);
-      if (re == NULL)
-	llvm::outs() << "FIRST byte is NOT a readexpr \n";
-      
-      SymbolicList list = state.symbolics;
-      Symbolic &one = list[0];
-      Symbolic &two = list[1];
-      Symbolic &thr = list[2];
-      const MemoryObject *m1 = one.first;
-      const MemoryObject *m2 = two.first;
-      const MemoryObject *m3 = thr.first;      
-
-      unsigned int i = 1;
-      for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
+      o2->numBytes = (unsigned int) mo->size;
+      o2->bytes = new PTestByte[o2->numBytes];
+      for (int idx = 0; idx < o2->numBytes; idx++)
 	{
-	  ref<Expr> e = *it;
-	  llvm::outs() << "\n ---[ Constraint " << i << ":\n";
-	  llvm::outs() << e;
-	  llvm::outs() << "\n ------------------- \n";
+	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
+	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
+	  ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
+	  if (re == NULL)
+	    llvm::outs() << "key_CE bytes NOT a readexpr \n";
+	  else
+	    {
+	      llvm::outs() << "\n key_CE ReadExpr is a SYM: " << *re << "\n";
+	      o2->bytes[idx].otype = PTestByte::SYM;
+	      o2->bytes[idx].value = 0;
+	    }	  
+	  if (cre == NULL)
+	    llvm::outs() << "key_CE bytes NOT a constantexpr \n";
+	  else
+	    {
+	      unsigned char val8 = (unsigned char) cre->getZExtValue(8);
+	      llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
+	      o2->bytes[idx].otype = PTestByte::EQ;
+	      o2->bytes[idx].value = val8;
+	    }	  
 	}
-      
-      llvm::outs() << "Attach me " << getpid() << "\n";  
-      llvm::outs() << "RAISING SIGABRT \n";
-      raise(SIGABRT);
     }
 
+  PTestObject *o3 = &p.objects[2];
+  o3->name = (char *) "size";
+  if (sz_CE && sz_CE->getWidth() == 32)
+    {
+      o3->numBytes = 4;
+      o3->bytes = new PTestByte[o3->numBytes];
+      unsigned int size = (unsigned char) sz_CE->getZExtValue(32);
+      llvm::outs() << "Size value = " << size << "\n";
+      for (int idx = 0; idx < 4; idx++)
+	{
+	  o3->bytes[idx].otype = PTestByte::EQ;
+	  o3->bytes[idx].value = (unsigned char) ((size >> (idx*8)) & 0x000000FF);
+	}
+    }
+  
+  /*** --- later also possible to import constraints from the state instead of just "Symbolic" */
+  /*
+  SymbolicList list = state.symbolics;
+  Symbolic &one = list[0];
+  Symbolic &two = list[1];
+  Symbolic &thr = list[2];
+  const MemoryObject *m1 = one.first;
+  const MemoryObject *m2 = two.first;
+  const MemoryObject *m3 = thr.first;        
+  unsigned int i = 1;
+  for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
+    {
+      ref<Expr> e = *it;
+      llvm::outs() << "\n ---[ Constraint " << i << ":\n";
+      llvm::outs() << e;
+      llvm::outs() << "\n ------------------- \n";
+    }
+  
+  llvm::outs() << "Attach me " << getpid() << "\n";  
+  llvm::outs() << "RAISING SIGABRT \n";
   raise(SIGABRT);
-  
-  if (sz_CE)
-    {
-      //sz_CE.getValue()
-    }
-
-  
-  /* else
-    {
-      llvm::outs() << "Argument is constant! width = " << CE->getWidth() << " Value: ";
-      CE->print(llvm::outs());
-      CE->print(*constrTransFile);
-      llvm::outs() << "\n";
-
-      //llvm::outs() << "RAISING SIGABRT \n";
-      //raise(SIGABRT);
-      //copy = copy;
-
-      //ref<Expr> second_byte = os->read(1, 8); // at offset 1, read an 8-bit element.
-      //ref<Expr> third_byte = os->read(2, 8); // at offset 2, read an 8-bit element.
-      //llvm::outs() << "\n NOW PRINT ONE BYTE \n";
-      
-      llvm::outs() << "BYTE 1: \n";
-      first_byte->print(llvm::outs());
-      llvm::outs() << "\n";
-      ConstantExpr *CE = dyn_cast<ConstantExpr>(first_byte);
-      if (CE)
-	{
-	  llvm::outs() << "\n ZExtValue BYTE 1: \n";					    
-	  unsigned char c = CE->getZExtValue();
-	  llvm::outs() << c << "\n";
-	}
-      else
-      {
-	llvm::outs() << "First byte NOT constant \n";
-	llvm::outs() << "---------\n";
-	}
   */
-     
+  
+  /* Store constraints in PTest file */
+  // Dump separate ptest files for each persist
+  // Could be change to persist all in same file
+  int curcnt;
+  if (cntmap.find(trans.dstfct) != cntmap.end())
+    curcnt = cntmap[trans.dstfct];
+  else
+    curcnt = 0;
+  cntmap[trans.dstfct] = curcnt + 1;
+
+  std::ostringstream ss;
+  ss << curcnt;
+  std::string filename = trans.dstfct + "." + ss.str() + ".ptest";
+  if (!pTest_toFile(&p, filename.c_str())) 
+    klee_warning("Unable to write persistent test case, losing it");  
+  else
+    llvm::outs() << "Succesfully exported new ptest file " << filename << "\n";
+  
+  for (unsigned i=0; i<p.numObjects; i++)
+    delete[] p.objects[i].bytes;
+  delete[] p.objects;
+
   
 }
 

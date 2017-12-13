@@ -15,30 +15,36 @@
 extern "C" {
 #endif
 
+  typedef struct PTestByte PTestByte;
+  struct PTestByte
+  {
+    enum	ctype
+      {
+	SYM = 0,
+	EQ  = 1,
+	LT  = 2,
+	GT  = 3,
+	GEQ = 4,
+	LEQ = 5,
+	NEQ = 6
+      };
+    unsigned int  otype;    
+    unsigned char value;
+  };
+  
   typedef struct PTestObject PTestObject;
   struct PTestObject {
     char	*name;
-    enum	ctype
-      {
-	EQ  = 0,
-	LT  = 1,
-	GT  = 2,
-	GEQ = 3,
-	LEQ = 4,
-	NEQ = 5,
-      };
-    unsigned int  otype;
-    unsigned int  numBytes;
-    unsigned char *bytes;
+    unsigned int numBytes;
+    PTestByte   *bytes;
   };
   
   typedef struct PTest PTest;
   struct PTest {
-    unsigned numObjects;
+    unsigned int numObjects;
     PTestObject *objects;
   };
 
-    
   /* return true iff file at path matches KTest header */
   int   pTest_isPTestFile(const char *path);
 
@@ -49,11 +55,12 @@ extern "C" {
   int   pTest_toFile(PTest *, const char *path);
   
   /* returns total number of object bytes */
-  unsigned pTest_numBytes(pTest *);
+  unsigned int pTest_numBytes(PTest *);
 
   void  pTest_free(PTest *);
 
 #ifdef __cplusplus
+}
 #endif
 
 #endif
