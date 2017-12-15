@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
   if (argc != 2)
     return (-1);
   char *key = argv[1];
-  char value[128] = {0x00};
+  char value[8] = {0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
   int len = 0;
   int klen = strlen(key);
   if (klen == 0)

@@ -6,7 +6,7 @@ OBJ2 = $(SRC2:.c=.bc)
 CLG = clang
 CFLAGS = -I../../include -O0
 
-all: clean comp run
+all: clean comp run dot
 
 comp:
 	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC1)
@@ -19,13 +19,16 @@ run:
 	@echo file `which klee` > klee.gdb
 	@echo b klee::Executor::pbranch >> klee.gdb
 	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
-	@echo tui enable >> klee.gdb
+	@echo delete >> klee.gdb
+	@echo b klee::ConstraintManager::simplifyExpr >> klee.gdb
+	@echo b klee::ConstraintManager::addConstraintInternal >> klee.gdb
+	@echo c >> klee.gdb
 	gdb `which klee` -x klee.gdb
 
 dot:
-	@dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
-	@dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
-	@dot -Tpng klee-out-0/hklee-heap.gv > hklee-heap.png
+	@dot -Tpng klee-last/hklee-cfg.gv > hklee-cfg.png
+	@dot -Tpng klee-last/hklee-ss.gv > hklee-ss.png
+	@dot -Tpng klee-last/hklee-heap.gv > hklee-heap.png
 
 clean:
 	rm -fr *.bc klee-last klee-out-0 *~

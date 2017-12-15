@@ -1008,7 +1008,7 @@ void Executor::pbranch(ExecutionState &state,
       ExecutionState *ns = state.branch();
       statsTracker->incNumFork();
       
-      this->trackEdges(state, *ns, EDGE_SYM, "branch");
+      this->trackEdges(state, *ns, EDGE_SYM, "pbranch");
       
       addedStates.push_back(ns);
       result.push_back(ns);
@@ -1017,9 +1017,11 @@ void Executor::pbranch(ExecutionState &state,
         processTree->split(state.ptreeNode, ns, &state);
       ns->ptreeNode = res.first;
       state.ptreeNode = res.second;
-      
       for (unsigned i=0; i<N; ++i)
-	addConstraint(*ns, conditions[i], attrib);
+	{
+	  ref<Expr> cur = conditions[i];
+	  addConstraint(*ns, cur, attrib);
+	}
     }
 }
 
@@ -2057,7 +2059,7 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
     }
 
   
-  // XXX : we are currently supporting strings and int32 constants in transfers, more basic types should be added
+  // XXX : We consider all data as lists of bytes currently, which allows to support all basic types without further logic, at least until we add compound types support
   // Types are currently hardcoded
   /*
 
@@ -2079,7 +2081,6 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
     };
   */
 
-  
   /* If there is no such directory, return as normal without doing anything */
   std::string dirstr = trans.dstfct + "-ptests";
   DIR* dir = opendir(dirstr.c_str());
@@ -2112,11 +2113,14 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
   llvm::outs() << "Obtained " << testnbr << " persisted tests \n";
   
   /* Go over each tests and populate new states */
-  for (std::vector<PTest*>::iterator it = tests.begin(); it != tests.end(); it++)
+  unsigned int pnum = 1;
+  for (std::vector<PTest*>::iterator it = tests.begin(); it != tests.end(); it++, pnum++)
     {
       PTest *curtest = *it;
       std::vector< ref<Expr> > conditions;
-	
+
+      ExecutionState *ns = state.branch();
+      
       // For each object in the current ptest file
       for (unsigned int idx = 0; idx < curtest->numObjects; idx++)
 	{
@@ -2135,6 +2139,16 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	      llvm::outs() << "Unknown object " << obj->name << " - passing \n";
 	      continue;
 	    }
+
+	  /* Extract byte expressions from target */
+	  ObjectPair op;
+	  bool success;
+	  solver->setTimeout(coreSolverTimeout);
+	  success = ns->addressSpace.resolveOne(cast<ConstantExpr>(target), op);
+	  solver->setTimeout(0);
+	  assert(success && "[-] Failed to resolve memobject for Transfer LOAD Stub argument");
+	  const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+	  ObjectState *os = (ObjectState*) op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)	  
 	  
 	  // We track constraints at the byte level, so go over all byte-level constraints of that object
 	  for (unsigned int idx2 = 0; idx2 < obj->numBytes; idx2++)
@@ -2153,6 +2167,8 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 
 		  // Create a new symbolic
 		case PTestByte::SYM:
+
+		  /*
 		  ss << std::string(obj->name) << "_byte" << idx2;
 		  uniqueName = ss.str();
 		  array = arrayCache.CreateArray(uniqueName, 8);
@@ -2161,6 +2177,7 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 		  curcond = NotOptimizedExpr::create(EqExpr::create(xe, v));
 		  
 		  llvm::outs() << "Added a SYMBOLIC constraint to state \n";
+		  */
 		  
 		  // XXX: Should also make these calls for completion, but where do you get mo?
 		  //bindObjectInState(state, mo, false, array);
@@ -2169,9 +2186,25 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 		  break;
 		  
 		case PTestByte::EQ:
-		  v  = ConstantExpr::create(byte->value, 8);
-		  xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
-		  curcond = EqExpr::create(xe, v);
+
+		  os->write8(idx2*8, byte->value);
+
+		  /*
+		  //v  = ConstantExpr::create(byte->value, 8);
+		  //xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
+		  //curcond = NotOptimizedExpr::create(EqExpr::create(xe, v));
+		  llvm::outs() << "Printing extracted expr: ";
+		  xe->print(llvm::outs());
+		  llvm::outs() << "\n";
+		  llvm::outs() << "Printing byte value expr: ";
+		  v->print(llvm::outs());
+		  llvm::outs() << "\n";
+		  		  
+		  // Add the cond to the constraints to add to the forked state representing the ptest
+		  //curcond = EqExpr::create(xe, v);
+		  //conditions.push_back(curcond);	      
+		  */
+		  
 		  llvm::outs() << "Added a CONSTANT constraint to state \n";		  
 		  break;
 		  
@@ -2180,17 +2213,35 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 		  break;
 		}
 
-	      // Add the cond to the constraints to add to the forked state representing the ptest
-	      conditions.push_back(curcond);	      
 	    }
 	}
-      
+
       // pbranch() will create a new state with all the additional conditions
+      /*
+      llvm::outs() << "Now adding " << conditions.size() << " constraints to branched state \n";      
       std::vector<ExecutionState*> branches;	
       pbranch(state, conditions, branches, 'P');
+
+      llvm::outs() << "CONSTRAINTS AVAILABLE AT / AFTER LOADING PTest " << pnum << "\n";
+      unsigned int j = 1;
+      for (std::vector<ExecutionState*>::iterator sit = branches.begin(); sit != branches.end(); sit++, j++)
+	{
+	  llvm::outs() << "\n ********* State " << j << " ********* \n";
+	  
+	  ExecutionState *curstate = *sit;
+	  unsigned int i = 0;
+	  for (ConstraintManager::constraint_iterator it = curstate->constraints.begin(); it != curstate->constraints.end(); it++, i++)
+	    {
+	      ref<Expr> e = *it;
+	      llvm::outs() << "\n ---[ Constraint " << i << ":\n";
+	      llvm::outs() << e;
+	      llvm::outs() << "\n ------------------- \n";
+	    }
+	}
+      */
       
       // Create a new state where the content of a ptest file is added as conditions
-      llvm::outs() << "Created " << branches.size() << " new states after loading ptest \n";
+      //llvm::outs() << "Created " << branches.size() << " new states after loading ptest \n";
       
     }
   
