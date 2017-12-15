@@ -1,0 +1,13 @@
+make[3]: Entering directory '/home/jvanegue/hklee/heap-examples/heap17_constraint_reload'
+rm -fr *.bc klee-last klee-out-0 *~
+clang -emit-llvm -c -g -I../../include -O0 kvwrite.c 
+clang -emit-llvm -c -g -I../../include -O0 kvread.c
+Calling kv-read example
+Registering Transfer functions... 
+FOUND transfer stub! 
+Found Persisted constraints DESTINATION kv_read
+No ptest directory for kv_read-ptests or unable to open 
+FOUND transfer stub! 
+Found Persisted constraints DESTINATION kv_read
+No ptest directory for kv_read-ptests or unable to open 
+make[3]: Leaving directory '/home/jvanegue/hklee/heap-examples/heap17_constraint_reload'

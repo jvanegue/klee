@@ -1,0 +1,10 @@
+KLEE: NOTE: Using klee-uclibc : /home/jvanegue/hklee/Release+Asserts/lib/klee-uclibc.bca
+KLEE: NOTE: Using model: /home/jvanegue/hklee/Release+Asserts/lib/libkleeRuntimePOSIX.bca
+KLEE: output directory is "/home/jvanegue/hklee/heap-examples/heap17_constraint_reload/klee-out-0"
+KLEE: Using STP solver backend
+KLEE: WARNING ONCE: calling external: syscall(16, 0, 21505, 33123328) at /home/jvanegue/hklee/runtime/POSIX/fd.c:1044
+KLEE: WARNING ONCE: calling __user_main with extra arguments.
+
+KLEE: done: total instructions = 6722
+KLEE: done: completed paths = 16
+KLEE: done: generated tests = 16

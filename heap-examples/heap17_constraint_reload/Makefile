@@ -12,10 +12,15 @@ comp:
 	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC1)
 	$(CLG) -emit-llvm -c -g $(CFLAGS) $(SRC2)
 
-run:
+disabled_run:
 	@echo Calling kv-write example
 	@klee -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
+
+run:
 	@echo Calling kv-read example
+	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3 
+
+debug:
 	@echo file `which klee` > klee.gdb
 	@echo b klee::Executor::pbranch >> klee.gdb
 	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
