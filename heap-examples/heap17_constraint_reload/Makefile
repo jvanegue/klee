@@ -14,15 +14,18 @@ comp:
 
 run:
 	@echo Calling kv-write example
-	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3 > klee.gdb
+	@klee -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
+	@echo Calling kv-read example
+	@echo file `which klee` > klee.gdb
+	@echo b klee::Executor::pbranch >> klee.gdb
+	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
+	@echo tui enable >> klee.gdb
 	gdb `which klee` -x klee.gdb
 
-disabled: @echo Calling kv-read example
-	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3
+dot:
 	@dot -Tpng klee-out-0/hklee-cfg.gv > hklee-cfg.png
 	@dot -Tpng klee-out-0/hklee-ss.gv > hklee-ss.png
 	@dot -Tpng klee-out-0/hklee-heap.gv > hklee-heap.png
-
 
 clean:
 	rm -fr *.bc klee-last klee-out-0 *~

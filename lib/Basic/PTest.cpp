@@ -13,6 +13,8 @@
 #include <string.h>
 #include <stdio.h>
 
+
+
 #define PTEST_MAGIC_SIZE 5
 #define PTEST_MAGIC "PTEST"
 
@@ -78,12 +80,16 @@ int pTest_isPTestFile(const char *path) {
 
 
 PTest *pTest_fromFile(const char *path) {
+  printf("Opening ptest file %s \n", path);
   FILE *f = fopen(path, "rb");
   PTest *res = 0;
   unsigned i;
 
-  if (!f) 
-    goto error;
+  if (!f)
+    {
+      perror("open");
+      goto error;
+    }
   if (!pTest_checkHeader(f)) 
     goto error;
 
@@ -134,7 +140,7 @@ int pTest_toFile(PTest *bo, const char *path) {
 
   if (!f) 
     goto error;
-  if (fwrite(PTEST_MAGIC, strlen(PTEST_MAGIC), 1, f)!=1)
+  if (fwrite(PTEST_MAGIC, PTEST_MAGIC_SIZE, 1, f)!=1)
     goto error;
   if (!write_uint32(f, bo->numObjects))
     goto error;

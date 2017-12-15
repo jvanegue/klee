@@ -112,7 +112,7 @@
 #include <cxxabi.h>
 #include <sys/wait.h>
 #include <sys/types.h>
-
+#include <dirent.h>
 
 using namespace llvm;
 using namespace klee;
@@ -985,6 +985,47 @@ void Executor::branch(ExecutionState &state,
       addConstraint(*result[i], conditions[i], attrib);
 }
 
+
+// Branch in case of persisted constraints - all constraints go into a single state
+// rather than one condition per successor state as in branch() above
+void Executor::pbranch(ExecutionState &state, 
+		       const std::vector< ref<Expr> > &conditions,
+		       std::vector<ExecutionState*> &result,
+		       unsigned char attrib) {
+  TimerStatIncrementer timer(stats::forkTime);
+  unsigned N = conditions.size();
+  assert(N);
+
+  if (MaxForks != ~0u && stats::forks >= MaxForks)
+    {
+      result.push_back(&state);
+    }
+  else
+    {
+      stats::forks += 1;
+      
+      result.push_back(&state);
+      ExecutionState *ns = state.branch();
+      statsTracker->incNumFork();
+      
+      this->trackEdges(state, *ns, EDGE_SYM, "branch");
+      
+      addedStates.push_back(ns);
+      result.push_back(ns);
+      state.ptreeNode->data = 0;
+      std::pair<PTree::Node*,PTree::Node*> res = 
+        processTree->split(state.ptreeNode, ns, &state);
+      ns->ptreeNode = res.first;
+      state.ptreeNode = res.second;
+      
+      for (unsigned i=0; i<N; ++i)
+	addConstraint(*ns, conditions[i], attrib);
+    }
+}
+
+
+
+
 Executor::StatePair 
 Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, unsigned char attrib) {
   Solver::Validity res;
@@ -1219,6 +1260,7 @@ Executor::fork(ExecutionState &current, ref<Expr> condition, bool isInternal, un
 }
 
 void Executor::addConstraint(ExecutionState &state, ref<Expr> condition, unsigned char attrib) {
+
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(condition)) {
     if (!CE->isTrue())
       llvm::report_fatal_error("attempt to add invalid constraint");
@@ -1794,35 +1836,22 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 	src_key = eval(ki, j+1, state).value;
     }
   
+  // XXX : we are currently supporting strings and int32 constants in transfers, more basic types should be added
+  // Types are currently hardcoded
+  /*
+
 #define VAR_BYTE   s_transfer::VAR_BYTE
 #define VAR_INT    s_transfer::VAR_INT
 #define VAR_STR    s_transfer::VAR_STR
 #define VAR_SHORT  s_transfer::VAR_SHORT
 #define VAR_UINT64 s_transfer::VAR_UINT64
   
-  // XXX : we are currently supporting strings and int32 constants in transfers
-  // Types are currently hardcoded
-  /*
   switch (trans.type)
     {
     case (VAR_BYTE):
-      if (trans.array)
-	{
-	}
-      else
-	{
-	}
       break;
-      
     case (VAR_INT):
-      if (trans.array)
-	{
-	}
-      else
-	{
-	}      
       break;
-
     default:
       llvm::outs() << "Unsupported transfer type " << trans.type << "\n";
       return;
@@ -1835,19 +1864,6 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   ConstantExpr *CE = dyn_cast<ConstantExpr>(src_expr);
   ConstantExpr *key_CE = dyn_cast<ConstantExpr>(src_key);
   ConstantExpr *sz_CE = dyn_cast<ConstantExpr>(sz_expr);
-
-  /*
-  llvm::outs() << "\n ---[ CE     :"     << *CE << "\n";
-  llvm::outs() << "\n ---[ key_CE :" << *key_CE << "\n";
-  llvm::outs() << "\n ---[ sz_CE  :"  << *sz_CE << "\n";
-  
-  if (copy == NULL)
-    llvm::outs() << "DATA argument is not constant!\n";
-  if (key_copy == NULL)
-    llvm::outs() << "KEY argument is not constant!\n";
-  if (sz_copy == NULL)
-    llvm::outs() << "SIZE argument is not constant!\n";
-  */
   
   // The outcome of this procedure is a new PTest file
   PTest p;
@@ -1873,7 +1889,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
       o1->numBytes = (unsigned int) mo->size;
       o1->bytes = new PTestByte[o1->numBytes];
-      for (int idx = 0; idx < o1->numBytes; idx++)
+      for (unsigned int idx = 0; idx < o1->numBytes; idx++)
 	{
 	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
 	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
@@ -1884,7 +1900,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 	    {
 	      llvm::outs() << "\n CE ReadExpr is a SYM: " << *re;
 	      o1->bytes[idx].otype = PTestByte::SYM;
-	      o1->bytes[idx].value = 0;
+	      o1->bytes[idx].value = 1;
 	    }	  
 	  if (cre == NULL)
 	    llvm::outs() << "CE bytes NOT a constantexpr \n";
@@ -1914,7 +1930,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
       o2->numBytes = (unsigned int) mo->size;
       o2->bytes = new PTestByte[o2->numBytes];
-      for (int idx = 0; idx < o2->numBytes; idx++)
+      for (unsigned int idx = 0; idx < o2->numBytes; idx++)
 	{
 	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
 	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
@@ -1925,7 +1941,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 	    {
 	      llvm::outs() << "\n key_CE ReadExpr is a SYM: " << *re << "\n";
 	      o2->bytes[idx].otype = PTestByte::SYM;
-	      o2->bytes[idx].value = 0;
+	      o2->bytes[idx].value = 1;
 	    }	  
 	  if (cre == NULL)
 	    llvm::outs() << "key_CE bytes NOT a constantexpr \n";
@@ -1957,6 +1973,9 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   /*** --- later also possible to import constraints from the state instead of just "Symbolic" */
   /*
   SymbolicList list = state.symbolics;
+
+  //for ((SymbolicList::iterator it = state.symbolics.begin(); it != state.symb
+
   Symbolic &one = list[0];
   Symbolic &two = list[1];
   Symbolic &thr = list[2];
@@ -1971,15 +1990,15 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       llvm::outs() << e;
       llvm::outs() << "\n ------------------- \n";
     }
-  
-  llvm::outs() << "Attach me " << getpid() << "\n";  
-  llvm::outs() << "RAISING SIGABRT \n";
-  raise(SIGABRT);
   */
   
   /* Store constraints in PTest file */
   // Dump separate ptest files for each persist
   // Could be change to persist all in same file
+  std::string ptst = std::string("-ptests");
+  std::string str = trans.dstfct.c_str() + ptst;
+  mkdir(str.c_str(), 0755);
+  
   int curcnt;
   if (cntmap.find(trans.dstfct) != cntmap.end())
     curcnt = cntmap[trans.dstfct];
@@ -1989,26 +2008,41 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 
   std::ostringstream ss;
   ss << curcnt;
+  std::string dirname = trans.dstfct + "-ptests";
   std::string filename = trans.dstfct + "." + ss.str() + ".ptest";
+
+  // We execute from the klee-out directory so export ptests one level above
+  std::string cwd = std::string(get_current_dir_name()) + "/" + dirname;
+  
+  if (0 != chdir(cwd.c_str()))
+    llvm::outs() << "Error during chdir to " << cwd << "\n";
+    
   if (!pTest_toFile(&p, filename.c_str())) 
-    klee_warning("Unable to write persistent test case, losing it");  
+    klee_warning("Unable to write ptest file, throwing out");  
   else
     llvm::outs() << "Succesfully exported new ptest file " << filename << "\n";
+  
+  chdir("..");
   
   for (unsigned i=0; i<p.numObjects; i++)
     delete[] p.objects[i].bytes;
   delete[] p.objects;
-
-  
 }
+
+
+
+
+
 
 
 // We are importing constraints
 void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
-  RefExpr	dst_expr;
-
-  if (numArgs < trans.dstpos)
+  RefExpr	key;
+  RefExpr	value;
+  //RefExpr	sz;
+  
+  if (numArgs < trans.dstpos || numArgs < trans.dstkey)
     {
       llvm::outs() << "Defined SOURCE API for transfer has too few parameters - returning without transfering \n";
       return;
@@ -2016,42 +2050,151 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
   
   for (unsigned j=0; j<numArgs; ++j)
     {
-      if (j+1 == trans.dstpos)
-	dst_expr = eval(ki, j+1, state).value;
+      if (j+1 == trans.dstkey)
+	key = eval(ki, j+1, state).value;
+      else if (j+1 == trans.dstpos)
+	value = eval(ki, j+1, state).value;
     }
+
+  
+  // XXX : we are currently supporting strings and int32 constants in transfers, more basic types should be added
+  // Types are currently hardcoded
+  /*
 
 #define VAR_BYTE   s_transfer::VAR_BYTE
 #define VAR_INT    s_transfer::VAR_INT
 #define VAR_STR    s_transfer::VAR_STR
 #define VAR_SHORT  s_transfer::VAR_SHORT
 #define VAR_UINT64 s_transfer::VAR_UINT64
-
-  ConstantExpr *CE = dyn_cast<ConstantExpr>(dst_expr);
-  if (CE == NULL)
-    {
-      llvm::outs() << "Argument is not constant!\n";
-    }
-  else
-    {
-      llvm::outs() << "Argument is constant!\n";
-    }
   
-  // XXX: Want to support 4 cases: scalar, symbolic scalar, pointer, symbolic pointer
   switch (trans.type)
     {
     case (VAR_BYTE):
-      llvm::outs() << "Found VAR_BYTE LOAD case \n";
       break;
-      
     case (VAR_INT):
-      llvm::outs() << "Found VAR_INT LOAD case \n";
       break;
-
     default:
-      llvm::outs() << "Unsupported LOAD transfer type " << trans.type << "\n";
+      llvm::outs() << "Unsupported transfer type " << trans.type << "\n";
       return;
     };
+  */
 
+  
+  /* If there is no such directory, return as normal without doing anything */
+  std::string dirstr = trans.dstfct + "-ptests";
+  DIR* dir = opendir(dirstr.c_str());
+  if (dir == NULL)
+    {
+      llvm::outs() << "No ptest directory for " + dirstr + " or unable to open \n";
+      return;
+    }
+  
+  /* Now load PTest file */
+  std::vector<PTest*> tests;
+  std::string cwd = std::string(get_current_dir_name()) + "/" + dirstr;
+  chdir(dirstr.c_str());
+  for (struct dirent *ent = readdir(dir); ent != NULL; ent = readdir(dir))
+    {
+      // Bypass non regular files
+      if (ent->d_type != DT_REG)
+	continue;      
+      PTest *ptest = pTest_fromFile(ent->d_name);
+      if (ptest == NULL)
+	{
+	  llvm::outs() << "Failed to create PTest file for " << std::string(ent->d_name) << " - passing\n";
+	  continue;
+	}
+      tests.push_back(ptest);
+    }
+  chdir("..");
+  
+  unsigned int testnbr = tests.size();
+  llvm::outs() << "Obtained " << testnbr << " persisted tests \n";
+  
+  /* Go over each tests and populate new states */
+  for (std::vector<PTest*>::iterator it = tests.begin(); it != tests.end(); it++)
+    {
+      PTest *curtest = *it;
+      std::vector< ref<Expr> > conditions;
+	
+      // For each object in the current ptest file
+      for (unsigned int idx = 0; idx < curtest->numObjects; idx++)
+	{
+	  ref<Expr> target;
+	  PTestObject *obj = curtest->objects + idx;
+	  
+	  llvm::outs() << "PTest: Now loading " << obj->numBytes << " constraints for object " << obj->name << "\n";
+	      
+	  // Our constraint transfer currently works with three fields: key, value and size (size is unused for now)
+	  if (!strcmp(obj->name, "key"))
+	    target = key;
+	  else if (!strcmp(obj->name, "data"))
+	    target = value;
+	  else
+	    {
+	      llvm::outs() << "Unknown object " << obj->name << " - passing \n";
+	      continue;
+	    }
+	  
+	  // We track constraints at the byte level, so go over all byte-level constraints of that object
+	  for (unsigned int idx2 = 0; idx2 < obj->numBytes; idx2++)
+	    {
+	      PTestByte *byte = obj->bytes + idx2;
+	      ref<Expr> v;
+	      std::ostringstream ss;
+	      std::string uniqueName;
+	      const Array *array;
+	      ref<Expr> xe;
+	      ref<Expr> curcond;
+	      
+	      // For now we just support constant value or symbolic, but more elaborate constraints will come
+	      switch (byte->otype)
+		{
+
+		  // Create a new symbolic
+		case PTestByte::SYM:
+		  ss << std::string(obj->name) << "_byte" << idx2;
+		  uniqueName = ss.str();
+		  array = arrayCache.CreateArray(uniqueName, 8);
+		  v    = Expr::createTempRead(array, 8);
+		  xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
+		  curcond = NotOptimizedExpr::create(EqExpr::create(xe, v));
+		  
+		  llvm::outs() << "Added a SYMBOLIC constraint to state \n";
+		  
+		  // XXX: Should also make these calls for completion, but where do you get mo?
+		  //bindObjectInState(state, mo, false, array);
+		  //state.addSymbolic(mo, array);
+	        
+		  break;
+		  
+		case PTestByte::EQ:
+		  v  = ConstantExpr::create(byte->value, 8);
+		  xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
+		  curcond = EqExpr::create(xe, v);
+		  llvm::outs() << "Added a CONSTANT constraint to state \n";		  
+		  break;
+		  
+		default:
+		  llvm::outs() << "Unsupported constraint type " << byte->otype << " - passing \n";
+		  break;
+		}
+
+	      // Add the cond to the constraints to add to the forked state representing the ptest
+	      conditions.push_back(curcond);	      
+	    }
+	}
+      
+      // pbranch() will create a new state with all the additional conditions
+      std::vector<ExecutionState*> branches;	
+      pbranch(state, conditions, branches, 'P');
+      
+      // Create a new state where the content of a ptest file is added as conditions
+      llvm::outs() << "Created " << branches.size() << " new states after loading ptest \n";
+      
+    }
+  
+  return;
 }
 
 
