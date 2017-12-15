@@ -1,0 +1,23 @@
+KLEE: NOTE: Using klee-uclibc : /home/jvanegue/hklee/Release+Asserts/lib/klee-uclibc.bca
+KLEE: NOTE: Using model: /home/jvanegue/hklee/Release+Asserts/lib/libkleeRuntimePOSIX.bca
+KLEE: output directory is "/home/jvanegue/hklee/heap-examples/heap17_constraint_reload/klee-out-0"
+KLEE: Using STP solver backend
+KLEE: WARNING ONCE: calling external: syscall(16, 0, 21505, 43003888) at /home/jvanegue/hklee/runtime/POSIX/fd.c:1044
+KLEE: WARNING ONCE: calling __user_main with extra arguments.
+KLEE: WARNING ONCE: calling external: printf(49533760, 36083376, 36082448) at /home/jvanegue/hklee/heap-examples/heap17_constraint_reload/kvwrite.c:24
+
+KLEE: done: total instructions = 7011
+KLEE: done: completed paths = 16
+KLEE: done: generated tests = 16
+KLEE: NOTE: Using klee-uclibc : /home/jvanegue/hklee/Release+Asserts/lib/klee-uclibc.bca
+KLEE: NOTE: Using model: /home/jvanegue/hklee/Release+Asserts/lib/libkleeRuntimePOSIX.bca
+KLEE: output directory is "/home/jvanegue/hklee/heap-examples/heap17_constraint_reload/klee-out-22"
+KLEE: Using STP solver backend
+KLEE: WARNING ONCE: calling external: syscall(16, 0, 21505, 36342736) at /home/jvanegue/hklee/runtime/POSIX/fd.c:1044
+KLEE: WARNING ONCE: calling __user_main with extra arguments.
+KLEE: ERROR: /home/jvanegue/hklee/heap-examples/heap17_constraint_reload/kvread.c:23: memory error: out of bound pointer
+KLEE: NOTE: now ignoring this error at this location
+
+KLEE: done: total instructions = 6712
+KLEE: done: completed paths = 16
+KLEE: done: generated tests = 15
