@@ -2119,6 +2119,7 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
       PTest *curtest = *it;
       std::vector< ref<Expr> > conditions;
 
+      // Create new state
       ExecutionState *ns = state.branch();
       
       // For each object in the current ptest file
