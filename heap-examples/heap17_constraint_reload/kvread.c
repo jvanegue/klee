@@ -16,12 +16,17 @@ int main(int argc, char *argv[])
   int klen = strlen(key);
   if (klen == 0)
     return (-1);
-  if (!strcmp(key, "fst") || !strcmp(key, "snd"))
+  if (!strcmp(key, "fst"))
     { 
       kv_read(key, value, &len);
       unsigned char fst = value[0];
       value[fst] = 0x00;
-      return (0);
     }
-  return (-1);
+  else if (!strcmp(key, "snd"))
+    {
+      kv_read(key, value, &len);
+      unsigned char snd = value[0];
+      value[snd] = 0x00;
+    }
+  return (0);
 }

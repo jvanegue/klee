@@ -13,17 +13,21 @@ int main(int argc, char *argv[])
     return (-1);
   char *key = argv[1];
   int klen = strlen(key);
-  char *value = "\xFFval";
-  int len = strlen(value);
-  if (klen == 0 || len < 3)
+  if (klen == 0)
     return (-1);
-  if (!strcmp(key, "fst") || !strcmp(key, "snd"))
+  if (!strcmp(key, "fst"))
     {
+      char *value = "\xFFval";
+      int len = strlen(value);
       kv_write(key, value, len);
-      printf("WRITE: key[%s] = value[%s] \n", key, value);
-      return (0);
     }
-  return (-1);
+  else if (!strcmp(key, "snd"))
+    {
+      char *value = "\x00val";
+      int len = strlen(value);
+      kv_write(key, value, len);
+    }
+  return (0);
 }
 
 

@@ -16,17 +16,18 @@ run:
 	@echo Calling kv-write example
 	@klee -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
 	@echo Calling kv-read example
-	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3 
+	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3
 
 debug:
 	@echo file `which klee` > klee.gdb
-	@echo b klee::Executor::pbranch >> klee.gdb
 	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
+	gdb `which klee` -x klee.gdb
+
+more_debug:
 	@echo delete >> klee.gdb
 	@echo b klee::ConstraintManager::simplifyExpr >> klee.gdb
 	@echo b klee::ConstraintManager::addConstraintInternal >> klee.gdb
 	@echo c >> klee.gdb
-	gdb `which klee` -x klee.gdb
 
 dot:
 	@dot -Tpng klee-last/hklee-cfg.gv > hklee-cfg.png
@@ -34,7 +35,4 @@ dot:
 	@dot -Tpng klee-last/hklee-heap.gv > hklee-heap.png
 
 clean:
-	rm -fr *.bc klee-last klee-out-0 *~
-
-
-
+	rm -fr *.bc klee-last klee-out-0 *~ *ptests

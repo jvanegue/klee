@@ -373,7 +373,7 @@ void	Executor::SymbolicStubsRegister() {
   symStubs["rand"] = 0;
 }
 
-/* HKLEE: Persist/Reload pairs for constraint transfer */
+/* HKLEE: Persist/Reload API for constraint transfers */
 void	Executor::TransferStubsRegister() {
   transfer_t	trans;
 
@@ -386,9 +386,9 @@ void	Executor::TransferStubsRegister() {
   trans.srcpos = 2;
   trans.dstpos = 2;
   trans.szpos = 3;
-  trans.type = klee::Executor::s_transfer::VAR_BYTE;
-  trans.array = true;
-  trans.symbolic = false; // this may change if transfers are persisted
+  trans.type = klee::Executor::s_transfer::VAR_BYTE; //unused right now - everything is an array of bytes
+  trans.array = true;     // unused right now
+  trans.symbolic = false; // unused right now
   transStubs["kv_read"] = trans;
   transStubs["kv_write"] = trans;
 }
@@ -987,42 +987,39 @@ void Executor::branch(ExecutionState &state,
 
 
 // Branch in case of persisted constraints - all constraints go into a single state
-// rather than one condition per successor state as in branch() above
-void Executor::pbranch(ExecutionState &state, 
-		       const std::vector< ref<Expr> > &conditions,
-		       std::vector<ExecutionState*> &result,
-		       unsigned char attrib) {
+// rather than one condition per successor state as in branch() above.
+// The new constraints set can be empty, in such case no new constraint is added
+// (this happens when the new state will only be changed concretely)
+ExecutionState*	    Executor::pbranch(ExecutionState &state, 
+				      const std::vector< ref<Expr> > &conditions,
+				      unsigned char attrib) {
   TimerStatIncrementer timer(stats::forkTime);
-  unsigned N = conditions.size();
-  assert(N);
+  unsigned int N = conditions.size();
 
+  // No more fork possible, return error
   if (MaxForks != ~0u && stats::forks >= MaxForks)
+    return (NULL);
+
+  stats::forks += 1;
+      
+  ExecutionState *ns = state.branch();
+  statsTracker->incNumFork();
+
+  // This is used to dump images of the state space
+  this->trackEdges(state, *ns, EDGE_SYM, "pbranch");
+  
+  addedStates.push_back(ns);
+  state.ptreeNode->data = 0;
+  std::pair<PTree::Node*,PTree::Node*> res =
+    processTree->split(state.ptreeNode, ns, &state);
+  ns->ptreeNode = res.first;
+  state.ptreeNode = res.second;
+  for (unsigned i=0; i<N; ++i)
     {
-      result.push_back(&state);
+      ref<Expr> cur = conditions[i];
+      addConstraint(*ns, cur, attrib);
     }
-  else
-    {
-      stats::forks += 1;
-      
-      result.push_back(&state);
-      ExecutionState *ns = state.branch();
-      statsTracker->incNumFork();
-      
-      this->trackEdges(state, *ns, EDGE_SYM, "pbranch");
-      
-      addedStates.push_back(ns);
-      result.push_back(ns);
-      state.ptreeNode->data = 0;
-      std::pair<PTree::Node*,PTree::Node*> res = 
-        processTree->split(state.ptreeNode, ns, &state);
-      ns->ptreeNode = res.first;
-      state.ptreeNode = res.second;
-      for (unsigned i=0; i<N; ++i)
-	{
-	  ref<Expr> cur = conditions[i];
-	  addConstraint(*ns, cur, attrib);
-	}
-    }
+  return (ns);
 }
 
 
@@ -2120,7 +2117,7 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
       std::vector< ref<Expr> > conditions;
 
       // Create new state
-      ExecutionState *ns = state.branch();
+      ExecutionState *ns = pbranch(state, conditions, 'P');
       
       // For each object in the current ptest file
       for (unsigned int idx = 0; idx < curtest->numObjects; idx++)
@@ -2155,11 +2152,11 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	  for (unsigned int idx2 = 0; idx2 < obj->numBytes; idx2++)
 	    {
 	      PTestByte *byte = obj->bytes + idx2;
-	      ref<Expr> v;
+	      ref<Expr> v, v2;
 	      std::ostringstream ss;
 	      std::string uniqueName;
 	      const Array *array;
-	      ref<Expr> xe;
+	      ref<Expr> xe, dxe;
 	      ref<Expr> curcond;
 	      
 	      // For now we just support constant value or symbolic, but more elaborate constraints will come
@@ -2168,84 +2165,51 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 
 		  // Create a new symbolic
 		case PTestByte::SYM:
-
-		  /*
-		  ss << std::string(obj->name) << "_byte" << idx2;
+		  
+		  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
 		  uniqueName = ss.str();
-		  array = arrayCache.CreateArray(uniqueName, 8);
-		  v    = Expr::createTempRead(array, 8);
-		  xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
-		  curcond = NotOptimizedExpr::create(EqExpr::create(xe, v));
-		  
-		  llvm::outs() << "Added a SYMBOLIC constraint to state \n";
-		  */
-		  
-		  // XXX: Should also make these calls for completion, but where do you get mo?
-		  //bindObjectInState(state, mo, false, array);
-		  //state.addSymbolic(mo, array);
+		  array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
+		  v    = Expr::createTempRead(array, Expr::Int8);  
+		  v2 = os->read8(idx2);
+		  curcond = EqExpr::create(v, v2);
+		  addConstraint(*ns, curcond, 'P');
+		  bindObjectInState(*ns, mo, false, array);
+		  ns->addSymbolic(mo, array);
+		 		  
+		  llvm::outs() << "Added SYMBOLIC constraint to byte " << idx2 << " in new state \n";
 	        
 		  break;
-		  
+
+		  // Optimize for constants: just set the concrete value in the store of the forked state
 		case PTestByte::EQ:
 
-		  os->write8(idx2*8, byte->value);
-
-		  /*
-		  //v  = ConstantExpr::create(byte->value, 8);
-		  //xe = ExtractExpr::create(target, (idx2 * 8), 8);					   
-		  //curcond = NotOptimizedExpr::create(EqExpr::create(xe, v));
-		  llvm::outs() << "Printing extracted expr: ";
-		  xe->print(llvm::outs());
-		  llvm::outs() << "\n";
-		  llvm::outs() << "Printing byte value expr: ";
-		  v->print(llvm::outs());
-		  llvm::outs() << "\n";
-		  		  
-		  // Add the cond to the constraints to add to the forked state representing the ptest
-		  //curcond = EqExpr::create(xe, v);
-		  //conditions.push_back(curcond);	      
-		  */
+		  // XXX: check that no constraint becomes invalid because of this
+		  // XXX: Also, should this be made symbolic so its value can be selected for insertion in the ktest file?
+		  os->write8(idx2, byte->value);
 		  
-		  llvm::outs() << "Added a CONSTANT constraint to state \n";		  
+		  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " in new state \n";		  
 		  break;
 		  
 		default:
 		  llvm::outs() << "Unsupported constraint type " << byte->otype << " - passing \n";
 		  break;
 		}
-
 	    }
 	}
 
-      // pbranch() will create a new state with all the additional conditions
-      /*
-      llvm::outs() << "Now adding " << conditions.size() << " constraints to branched state \n";      
-      std::vector<ExecutionState*> branches;	
-      pbranch(state, conditions, branches, 'P');
-
-      llvm::outs() << "CONSTRAINTS AVAILABLE AT / AFTER LOADING PTest " << pnum << "\n";
-      unsigned int j = 1;
-      for (std::vector<ExecutionState*>::iterator sit = branches.begin(); sit != branches.end(); sit++, j++)
+      // Print constraints available in store after state creation
+      llvm::outs() << "\n **** New state constraints after loading: **** \n";
+      unsigned int i = 0;
+      for (ConstraintManager::constraint_iterator it = ns->constraints.begin(); it != ns->constraints.end(); it++, i++)
 	{
-	  llvm::outs() << "\n ********* State " << j << " ********* \n";
-	  
-	  ExecutionState *curstate = *sit;
-	  unsigned int i = 0;
-	  for (ConstraintManager::constraint_iterator it = curstate->constraints.begin(); it != curstate->constraints.end(); it++, i++)
-	    {
-	      ref<Expr> e = *it;
-	      llvm::outs() << "\n ---[ Constraint " << i << ":\n";
-	      llvm::outs() << e;
-	      llvm::outs() << "\n ------------------- \n";
-	    }
+	  ref<Expr> e = *it;
+	  llvm::outs() << "\n ---[ Constraint " << i << ": " << e << "\n";
 	}
-      */
+
+      //XXX: We stop after one test, for debug purpose
+      //break;
       
-      // Create a new state where the content of a ptest file is added as conditions
-      //llvm::outs() << "Created " << branches.size() << " new states after loading ptest \n";
-      
-    }
-  
+    }  
   return;
 }
 
@@ -5252,7 +5216,7 @@ size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
 
     klee_warning_once(fn != NULL ? fn : allocSite,
                       "Alignment of memory from call \"%s\" is not "
-                      "modelled. Using alignment of %zu.",
+                      "modelled. Using alignment of %lu.",
                       allocationSiteName.c_str(), forcedAlignment);
     alignment = forcedAlignment;
   } else {
@@ -5266,7 +5230,7 @@ size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
       alignment = kmodule->targetData->getPrefTypeAlignment(type);
     } else {
       klee_warning_once(allocSite, "Cannot determine memory alignment for "
-                                   "\"%s\". Using alignment of %zu.",
+                                   "\"%s\". Using alignment of %lu",
                         allocationSiteName.c_str(), forcedAlignment);
       alignment = forcedAlignment;
     }
@@ -5274,8 +5238,8 @@ size_t Executor::getAllocationAlignment(const llvm::Value *allocSite) const {
 
   // Currently we require alignment be a power of 2
   if (!bits64::isPowerOfTwo(alignment)) {
-    klee_warning_once(allocSite, "Alignment of %zu requested for %s but this "
-                                 "not supported. Using alignment of %zu",
+    klee_warning_once(allocSite, "Alignment of %lu requested for %s but this "
+                                 "not supported. Using alignment of %lu",
                       alignment, allocSite->getName().str().c_str(),
                       forcedAlignment);
     alignment = forcedAlignment;

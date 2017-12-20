@@ -397,10 +397,9 @@ private:
 	      unsigned char attrib);
 
   /// Create a single forked state with all the conditions added to it
-  void pbranch(ExecutionState &state, 
-	       const std::vector< ref<Expr> > &conditions,
-	       std::vector<ExecutionState*> &result,
-	       unsigned char attrib);
+  ExecutionState* pbranch(ExecutionState &state, 
+			  const std::vector< ref<Expr> > &conditions,
+			  unsigned char attrib);
   
   // Fork current and return states in which condition holds / does
   // not hold, respectively. One of the states is necessarily the
