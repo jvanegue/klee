@@ -1810,6 +1810,68 @@ static inline const llvm::fltSemantics * fpWidthToSemantics(unsigned width) {
 }
 
 
+// Export Constraint for an object
+void Executor::ConstraintStoreObj(ExecutionState &state, ConstantExpr *CE, PTestObject *o)
+{
+  ObjectPair op;
+  bool success;
+    
+  llvm::outs() << "ConstraintStoreObj: CE exists, will read first byte of resolved object \n";
+
+  // Constant non-pointers
+  if (CE->getWidth() == 32)
+    {
+      o->numBytes = 4;
+      o->bytes = new PTestByte[o->numBytes];
+      unsigned int size = (unsigned char) CE->getZExtValue(32);
+      llvm::outs() << "Size value = " << size << "\n";
+      for (unsigned int idx = 0; idx < o->numBytes; idx++)
+	{
+	  o->bytes[idx].otype = PTestByte::EQ;
+	  o->bytes[idx].value = (unsigned char) ((size >> (idx*8)) & 0x000000FF);
+	}
+      return;
+    }
+
+  // Pointers
+  solver->setTimeout(coreSolverTimeout);
+  success = state.addressSpace.resolveOne(CE, op);
+  solver->setTimeout(0);
+  assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
+  const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+  const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
+  o->numBytes = (unsigned int) mo->size;
+  o->bytes = new PTestByte[o->numBytes];
+  for (unsigned int idx = 0; idx < o->numBytes; idx++)
+    {
+      ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
+      ReadExpr *re = dyn_cast<ReadExpr>(byte);
+      ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
+      if (re == NULL)
+	llvm::outs() << "CE bytes NOT a readexpr \n";
+      else
+	{
+	  llvm::outs() << "\n CE ReadExpr is a SYM: " << *re;
+	  o->bytes[idx].otype = PTestByte::SYM;
+	  o->bytes[idx].value = 1;
+	}	  
+      if (cre == NULL)
+	llvm::outs() << "CE bytes NOT a constantexpr \n";
+      else
+	{
+	  unsigned char val8 = (unsigned char) cre->getZExtValue(8);
+	  llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
+	  o->bytes[idx].otype = PTestByte::EQ;
+	  o->bytes[idx].value = val8;
+	}	  
+    }
+  
+  return;
+}
+
+
+
+
 // We are exporting constraints
 void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs)
 {
@@ -1835,8 +1897,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 	src_key = eval(ki, j+1, state).value;
     }
   
-  // XXX : we are currently supporting strings and int32 constants in transfers, more basic types should be added
-  // Types are currently hardcoded
+  // we currently avoid this as all parameter types are encoded as byte strings
   /*
 
 #define VAR_BYTE   s_transfer::VAR_BYTE
@@ -1877,40 +1938,7 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   // This is the value tracking
   if (CE && CE->getWidth() == 64)
     {
-      llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
-      ObjectPair op;
-      bool success;
-      solver->setTimeout(coreSolverTimeout);
-      success = state.addressSpace.resolveOne(cast<ConstantExpr>(CE), op);
-      solver->setTimeout(0);
-      assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
-      const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
-      const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
-      o1->numBytes = (unsigned int) mo->size;
-      o1->bytes = new PTestByte[o1->numBytes];
-      for (unsigned int idx = 0; idx < o1->numBytes; idx++)
-	{
-	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
-	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
-	  ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
-	  if (re == NULL)
-	    llvm::outs() << "CE bytes NOT a readexpr \n";
-	  else
-	    {
-	      llvm::outs() << "\n CE ReadExpr is a SYM: " << *re;
-	      o1->bytes[idx].otype = PTestByte::SYM;
-	      o1->bytes[idx].value = 1;
-	    }	  
-	  if (cre == NULL)
-	    llvm::outs() << "CE bytes NOT a constantexpr \n";
-	  else
-	    {
-	      unsigned char val8 = (unsigned char) cre->getZExtValue(8);
-	      llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
-	      o1->bytes[idx].otype = PTestByte::EQ;
-	      o1->bytes[idx].value = val8;
-	    }	  
-	}
+      ConstraintStoreObj(state, CE, o1);
     }
 
   // Now track the key variable - same thing - should be factored later
@@ -1918,55 +1946,14 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   o2->name = (char *) "key";
   if (key_CE && key_CE->getWidth() == 64)
     {
-      llvm::outs() << "CE exists and width = 64, will read first byte of resolved object \n";
-      ObjectPair op;
-      bool success;
-      solver->setTimeout(coreSolverTimeout);
-      success = state.addressSpace.resolveOne(cast<ConstantExpr>(key_CE), op);
-      solver->setTimeout(0);
-      assert(success && "[-] Failed to resolve memobject for Transfer Stub argument");
-      const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
-      const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
-      o2->numBytes = (unsigned int) mo->size;
-      o2->bytes = new PTestByte[o2->numBytes];
-      for (unsigned int idx = 0; idx < o2->numBytes; idx++)
-	{
-	  ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
-	  ReadExpr *re = dyn_cast<ReadExpr>(byte);
-	  ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
-	  if (re == NULL)
-	    llvm::outs() << "key_CE bytes NOT a readexpr \n";
-	  else
-	    {
-	      llvm::outs() << "\n key_CE ReadExpr is a SYM: " << *re << "\n";
-	      o2->bytes[idx].otype = PTestByte::SYM;
-	      o2->bytes[idx].value = 1;
-	    }	  
-	  if (cre == NULL)
-	    llvm::outs() << "key_CE bytes NOT a constantexpr \n";
-	  else
-	    {
-	      unsigned char val8 = (unsigned char) cre->getZExtValue(8);
-	      llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
-	      o2->bytes[idx].otype = PTestByte::EQ;
-	      o2->bytes[idx].value = val8;
-	    }	  
-	}
+      ConstraintStoreObj(state, key_CE, o2);
     }
-
+  
   PTestObject *o3 = &p.objects[2];
   o3->name = (char *) "size";
   if (sz_CE && sz_CE->getWidth() == 32)
     {
-      o3->numBytes = 4;
-      o3->bytes = new PTestByte[o3->numBytes];
-      unsigned int size = (unsigned char) sz_CE->getZExtValue(32);
-      llvm::outs() << "Size value = " << size << "\n";
-      for (int idx = 0; idx < 4; idx++)
-	{
-	  o3->bytes[idx].otype = PTestByte::EQ;
-	  o3->bytes[idx].value = (unsigned char) ((size >> (idx*8)) & 0x000000FF);
-	}
+      ConstraintStoreObj(state, sz_CE, o3);
     }
   
   /*** --- later also possible to import constraints from the state instead of just "Symbolic" */
@@ -1981,15 +1968,15 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   const MemoryObject *m1 = one.first;
   const MemoryObject *m2 = two.first;
   const MemoryObject *m3 = thr.first;        
+  */
+
+  llvm::outs() << "** Constraints available at store time: \n";
   unsigned int i = 1;
   for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
     {
       ref<Expr> e = *it;
-      llvm::outs() << "\n ---[ Constraint " << i << ":\n";
-      llvm::outs() << e;
-      llvm::outs() << "\n ------------------- \n";
+      llvm::outs() << "\n ---[ Constraint " << i << ": " << e << "\n";
     }
-  */
   
   /* Store constraints in PTest file */
   // Dump separate ptest files for each persist
@@ -2162,7 +2149,7 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	      // For now we just support constant value or symbolic, but more elaborate constraints will come
 	      switch (byte->otype)
 		{
-
+		  
 		  // Create a new symbolic
 		case PTestByte::SYM:
 		  

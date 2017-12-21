@@ -22,7 +22,7 @@
 #include "klee/Internal/Module/KModule.h"
 #include "klee/util/ArrayCache.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include "klee/Internal/ADT/PTest.h"
 #include "llvm/ADT/Twine.h"
 
 #include <vector>
@@ -337,7 +337,7 @@ private:
   void transferConstraints(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
   void ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
   void ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
-  
+  void ConstraintStoreObj(ExecutionState &state, ConstantExpr *CE, PTestObject *o);  
   
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
