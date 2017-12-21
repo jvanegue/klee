@@ -53,7 +53,7 @@ ExprVisitor::Action ExprEvaluator::visitExpr(const Expr &e) {
     assert(i < 3);
     Kids[i] = e.getKid(i);
   }
-
+  
   return Action::changeTo(e.rebuild(Kids));
 }
 

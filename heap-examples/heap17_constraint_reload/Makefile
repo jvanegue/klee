@@ -14,13 +14,19 @@ comp:
 
 run:
 	@echo Calling kv-write example
+	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
+	@echo '************************************************************'
+	@echo Calling kv-read example
+	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  
+
+debug_run:
+	@echo Calling kv-write example
 	@klee -posix-runtime -libc=uclibc $(OBJ1) --sym-args 2 2 3
 	@echo Calling kv-read example
-	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3
-
-debug:
 	@echo file `which klee` > klee.gdb
+	@echo b klee::Executor::ConstraintStoreObj >> klee.gdb
 	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
+	@echo bt >> klee.gdb
 	gdb `which klee` -x klee.gdb
 
 more_debug:

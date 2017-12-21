@@ -1832,7 +1832,7 @@ void Executor::ConstraintStoreObj(ExecutionState &state, ConstantExpr *CE, PTest
 	}
       return;
     }
-
+  
   // Pointers
   solver->setTimeout(coreSolverTimeout);
   success = state.addressSpace.resolveOne(CE, op);
@@ -1842,28 +1842,123 @@ void Executor::ConstraintStoreObj(ExecutionState &state, ConstantExpr *CE, PTest
   const ObjectState *os = op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)
   o->numBytes = (unsigned int) mo->size;
   o->bytes = new PTestByte[o->numBytes];
+  
   for (unsigned int idx = 0; idx < o->numBytes; idx++)
     {
+      llvm::outs() << "********* Analyzing byte " << idx << "******** \n";
+      
       ref<Expr> byte = os->read(idx, 8); // at offset idx, read an 8-bit element.
       ReadExpr *re = dyn_cast<ReadExpr>(byte);
       ConstantExpr *cre = dyn_cast<ConstantExpr>(byte);
-      if (re == NULL)
-	llvm::outs() << "CE bytes NOT a readexpr \n";
-      else
+      
+      if (re == NULL && cre == NULL)
 	{
-	  llvm::outs() << "\n CE ReadExpr is a SYM: " << *re;
-	  o->bytes[idx].otype = PTestByte::SYM;
-	  o->bytes[idx].value = 1;
-	}	  
-      if (cre == NULL)
-	llvm::outs() << "CE bytes NOT a constantexpr \n";
-      else
+	  llvm::outs() << "CE bytes NOT a readexpr - passing \n";
+	  continue;
+	}
+
+      // Byte is constrant
+      else if (cre)
 	{
 	  unsigned char val8 = (unsigned char) cre->getZExtValue(8);
 	  llvm::outs() << "CRE is ConstantExpr val = " << val8 << " with width = " << cre->getWidth() << "\n";
 	  o->bytes[idx].otype = PTestByte::EQ;
 	  o->bytes[idx].value = val8;
-	}	  
+	}
+
+      // Byte has a read constraint on it
+      else if (re)
+	{
+	  std::string target_name = re->updates.root->name;
+	  llvm::outs() << "---[ CE ReadExpr name " << target_name << " is a SYM: " << *re << "\n";
+	  
+	  o->bytes[idx].otype = PTestByte::SYM;
+	  o->bytes[idx].value = 1;
+
+	  // Extract constraint on that symbolic from path condition if any is available
+	  for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++)
+	    {
+	      ref<Expr> e = *it;
+	      EqExpr *eq = dyn_cast<EqExpr>(e);
+	      if (!eq) continue;
+	      ReadExpr *lre = dyn_cast<ReadExpr>(eq->left);
+	      ReadExpr *rre = dyn_cast<ReadExpr>(eq->right);
+	      if (!lre && !rre) continue;
+	      ConstantExpr *eqval = NULL;
+	      bool found = false;
+	      
+	      // LHS ReadExpr
+	      if (lre && lre->updates.root->name == target_name)
+		{
+		  ConstantExpr *ei = dyn_cast<ConstantExpr>(lre->index);
+		  if (!ei)
+		    {
+		      llvm::outs() << "---[ Left node has NON CONST INDEX: unsupported case \n";
+		      continue;
+		    }
+		  else
+		    {
+		      uint64_t val1 = ei->getZExtValue(ei->getWidth());
+		      if (val1 == idx)
+			{
+			  eqval = dyn_cast<ConstantExpr>(eq->right);
+			  if (!eqval)
+			    {
+			      llvm::outs() << "---[ Right node EqExpr is NOT CONST value: unsupported case \n";
+			      continue;
+			    }
+			  llvm::outs() << "---[ MATCHING Constraint: " << *lre << " LEFT SIDE \n";
+			  found = true;			  
+			}
+		    }
+		}
+
+	      // RHS ReadExpr
+	      else if (rre && rre->updates.root->name == target_name)
+		{
+		  ConstantExpr *ei = dyn_cast<ConstantExpr>(rre->index);
+		  if (!ei)
+		    {
+		      llvm::outs() << "---[ Right node has NON CONST INDEX: unsupported case \n";
+		      continue;
+		    }
+		  else
+		    {
+		      uint64_t val1 = ei->getZExtValue(ei->getWidth());
+		      if (val1 == idx)
+			{
+			  eqval = dyn_cast<ConstantExpr>(eq->left);
+			  if (!eqval)
+			    {
+			      llvm::outs() << "---[ Left node EqExpr is NOT CONST value: unsupported case \n";
+			      continue;
+			    }
+
+			  llvm::outs() << "---[ MATCHING Constraint: " << *rre << " RIGHT SIDE\n";
+			  found = true;
+			}
+		    }
+		}
+
+	      // Check if we found the right name and offset at this EqExpr
+	      if (found)
+		{
+		  if (eqval->getWidth() != 8)
+		    {
+		      llvm::outs() << "---[ Eqval width was more than 8! we only support byte in ptests \n";
+		      found = false;
+		      continue;		      
+		    }
+		  o->bytes[idx].otype = PTestByte::EQ;
+		  o->bytes[idx].value = eqval->getZExtValue(eqval->getWidth());
+
+		  llvm::outs() << "STORED EQ SYM with ConstantExpr eqval = " << eqval->getZExtValue(eqval->getWidth()) << " with width = " << eqval->getWidth() << "\n";
+		  
+		  // Note: we only support one constraint per variable right now (e.g. linear or affine constraints)
+		  break;
+		}
+	    }	  
+	}
     }
   
   return;
@@ -1917,7 +2012,14 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
       return;
     };
   */
-  
+
+  llvm::outs() << "** Constraints available at store time: \n";
+  unsigned int i = 1;
+  for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
+    {
+      ref<Expr> e = *it;
+      llvm::outs() << "\n ---[ Constraint " << i << ": " << e << "\n";
+    }
   llvm::outs() << "\n---------\n";
   llvm::outs() << "EXPORT CONSTAINT: printing expr (argnum " << numArgs << ") \n";
   
@@ -1969,14 +2071,6 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   const MemoryObject *m2 = two.first;
   const MemoryObject *m3 = thr.first;        
   */
-
-  llvm::outs() << "** Constraints available at store time: \n";
-  unsigned int i = 1;
-  for (ConstraintManager::constraint_iterator it = state.constraints.begin(); it != state.constraints.end(); it++, i++)
-    {
-      ref<Expr> e = *it;
-      llvm::outs() << "\n ---[ Constraint " << i << ": " << e << "\n";
-    }
   
   /* Store constraints in PTest file */
   // Dump separate ptest files for each persist
