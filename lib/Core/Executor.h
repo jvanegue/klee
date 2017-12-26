@@ -139,7 +139,6 @@ public:
   typedef std::pair<const MemoryObject*, const Array*> Symbolic;
   typedef std::vector<Symbolic>			       SymbolicList;
 
-
   
   enum TerminateReason {
     Abort,
@@ -338,6 +337,7 @@ private:
   void ConstraintsStore(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
   void ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer_t& trans, std::string parent_func, unsigned int numArgs);
   void ConstraintStoreObj(ExecutionState &state, ConstantExpr *CE, PTestObject *o);  
+  bool ConstraintLoadObj(ExecutionState&ns, ref<Expr> target, PTestObject *obj);
   
   /// Allocate and bind a new object in a particular state. NOTE: This
   /// function may fork.
@@ -523,7 +523,7 @@ private:
   void doDumpEdges(); // XXX: HKLEE
   void doDumpViolationState(ExecutionState& state, std::string label);
   void SymbolicStubsRegister();
-  void TransferStubsRegister();
+  void TransferStubsRegister(); // XXX: HKLEE
   
 public:
   Executor(llvm::LLVMContext &ctx, const InterpreterOptions &opts,

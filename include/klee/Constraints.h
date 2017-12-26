@@ -44,6 +44,7 @@ public:
   ref<Expr> simplifyExpr(ref<Expr> e) const;
 
   void addConstraint(ref<Expr> e, unsigned char attrib);
+  bool addAndcheckConstraint(ref<Expr> e, unsigned char attrib);
   
   bool empty() const {
     return constraints.empty();
@@ -82,7 +83,7 @@ private:
 
   // returns true iff the constraints were modified
   bool rewriteConstraints(ExprVisitor &visitor, unsigned char attrib);
-  void addConstraintInternal(ref<Expr> e, unsigned char attrib);
+  bool addConstraintInternal(ref<Expr> e, unsigned char attrib, bool retcheck);
 };
 
 }

@@ -86,7 +86,7 @@ bool ConstraintManager::rewriteConstraints(ExprVisitor &visitor, unsigned char a
     ref<Expr> e = visitor.visit(ce);
 
     if (e!=ce) {
-      addConstraintInternal(e, attrib); // enable further reductions
+      addConstraintInternal(e, attrib, false); // enable further reductions
       changed = true;
     } else {
       ce->attrib_set(attrib);
@@ -126,11 +126,14 @@ ref<Expr> ConstraintManager::simplifyExpr(ref<Expr> e) const {
   return ExprReplaceVisitor2(equalities).visit(e);
 }
 
-void ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib) {
+// The return value indicates whether the constraint was added succesfully 
+bool ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib, bool retcheck) {
   // rewrite any known equalities and split Ands into different conjuncts
-
+  
   switch (e->getKind()) {
   case Expr::Constant:
+    if (retcheck)
+      return (false);
     assert(cast<ConstantExpr>(e)->isTrue() && 
            "attempt to add invalid (false) constraint");
     break;
@@ -138,8 +141,8 @@ void ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib)
     // split to enable finer grained independence and other optimizations
   case Expr::And: {
     BinaryExpr *be = cast<BinaryExpr>(e);
-    addConstraintInternal(be->left, attrib);
-    addConstraintInternal(be->right, attrib);
+    addConstraintInternal(be->left, attrib, retcheck);
+    addConstraintInternal(be->right, attrib, retcheck);
     break;
   }
 
@@ -166,9 +169,17 @@ void ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib)
     constraints.push_back(e);
     break;
   }
+  return (true);
 }
+
 
 void ConstraintManager::addConstraint(ref<Expr> e, unsigned char attrib) {
   e = simplifyExpr(e);
-  addConstraintInternal(e, attrib);
+  addConstraintInternal(e, attrib, false);
 }
+
+bool ConstraintManager::addAndcheckConstraint(ref<Expr> e, unsigned char attrib) {
+  e = simplifyExpr(e);
+  return (addConstraintInternal(e, attrib, true));
+}
+

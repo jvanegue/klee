@@ -2111,6 +2111,86 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
 
 
 
+// Load constraints for all bytes of that object. Check that path is feasible.
+bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObject *obj)
+{
+  ObjectPair op;
+  bool success;
+  solver->setTimeout(coreSolverTimeout);
+  success = ns.addressSpace.resolveOne(cast<ConstantExpr>(target), op);
+  solver->setTimeout(0);
+  assert(success && "[-] Failed to resolve memobject for Transfer LOAD Stub argument");
+  const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+  ObjectState *os = (ObjectState*) op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)	  
+  
+  // We track constraints at the byte level, so go over all byte-level constraints of that object
+  for (unsigned int idx2 = 0; idx2 < obj->numBytes; idx2++)
+    {
+      PTestByte *byte = obj->bytes + idx2;
+      ref<Expr> v, v2;
+      std::ostringstream ss;
+      std::string uniqueName;
+      const Array *array;
+      ref<Expr> xe, dxe;
+      ref<Expr> curcond;
+      bool      possible;
+      
+      // For now we just support constant value or symbolic, but more elaborate constraints will come
+      switch (byte->otype)
+	{
+		  
+	  // Create a new symbolic
+	case PTestByte::SYM:
+	  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
+	  uniqueName = ss.str();
+	  array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
+	  v    = Expr::createTempRead(array, Expr::Int8);  
+	  v2 = os->read8(idx2);
+	  curcond = EqExpr::create(v, v2);
+	  possible = ns.addAndcheckConstraint(curcond, 'P');
+	  if (possible == false)
+	    {
+	      llvm::outs() << "Impossible path was eliminated (SYM case) \n";
+	      terminateState(ns);
+	      return (false);
+	    }	  
+	  bindObjectInState(ns, mo, false, array);
+	  ns.addSymbolic(mo, array);		 		  
+	  llvm::outs() << "Added SYMBOLIC constraint to byte " << idx2 << " in new state \n";	        
+	  break;
+	  
+	  // Optimize for constants: just set the concrete value in the store of the forked state
+	case PTestByte::EQ:
+	  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
+	  uniqueName = ss.str();
+	  array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
+	  v    = Expr::createTempRead(array, Expr::Int8);  
+	  v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
+	  curcond = EqExpr::create(v, v2);
+	  possible = ns.addAndcheckConstraint(curcond, 'P');
+	  if (possible == false)
+	    {
+	      llvm::outs() << "Impossible path was eliminated (EQ case) \n";
+	      terminateState(ns);
+	      return (false);
+	    }
+	  
+	  os->write8(idx2, byte->value);
+	  bindObjectInState(ns, mo, false, array);
+	  ns.addSymbolic(mo, array);		 		  
+	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " in new state \n";		  
+	  break;
+	  
+	default:
+	  llvm::outs() << "Unsupported constraint type " << byte->otype << " - passing \n";
+	  break;
+	}
+    }
+  
+  return (true);
+}
+
+
 
 
 
@@ -2196,18 +2276,17 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
     {
       PTest *curtest = *it;
       std::vector< ref<Expr> > conditions;
-
+      bool   infeasible = false;
+      
       // Create new state
       ExecutionState *ns = pbranch(state, conditions, 'P');
       
       // For each object in the current ptest file
       for (unsigned int idx = 0; idx < curtest->numObjects; idx++)
 	{
-	  ref<Expr> target;
 	  PTestObject *obj = curtest->objects + idx;
+	  ref<Expr> target;
 	  
-	  llvm::outs() << "PTest: Now loading " << obj->numBytes << " constraints for object " << obj->name << "\n";
-	      
 	  // Our constraint transfer currently works with three fields: key, value and size (size is unused for now)
 	  if (!strcmp(obj->name, "key"))
 	    target = key;
@@ -2215,69 +2294,24 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	    target = value;
 	  else
 	    {
-	      llvm::outs() << "Unknown object " << obj->name << " - passing \n";
+	      llvm::outs() << "PTest: Unknown object " << obj->name << " - passing \n";
 	      continue;
 	    }
 
-	  /* Extract byte expressions from target */
-	  ObjectPair op;
-	  bool success;
-	  solver->setTimeout(coreSolverTimeout);
-	  success = ns->addressSpace.resolveOne(cast<ConstantExpr>(target), op);
-	  solver->setTimeout(0);
-	  assert(success && "[-] Failed to resolve memobject for Transfer LOAD Stub argument");
-	  const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
-	  ObjectState *os = (ObjectState*) op.second;   //note: ObjectStates stores the content of the object (either symbolic or concrete)	  
+	  llvm::outs() << "PTest: Now loading " << obj->numBytes << " constraints for object " << obj->name << "\n";
 	  
-	  // We track constraints at the byte level, so go over all byte-level constraints of that object
-	  for (unsigned int idx2 = 0; idx2 < obj->numBytes; idx2++)
+	  /* Extract byte constraints from target */
+	  if (ConstraintLoadObj(*ns, target, obj) == false)
 	    {
-	      PTestByte *byte = obj->bytes + idx2;
-	      ref<Expr> v, v2;
-	      std::ostringstream ss;
-	      std::string uniqueName;
-	      const Array *array;
-	      ref<Expr> xe, dxe;
-	      ref<Expr> curcond;
-	      
-	      // For now we just support constant value or symbolic, but more elaborate constraints will come
-	      switch (byte->otype)
-		{
-		  
-		  // Create a new symbolic
-		case PTestByte::SYM:
-		  
-		  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
-		  uniqueName = ss.str();
-		  array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
-		  v    = Expr::createTempRead(array, Expr::Int8);  
-		  v2 = os->read8(idx2);
-		  curcond = EqExpr::create(v, v2);
-		  addConstraint(*ns, curcond, 'P');
-		  bindObjectInState(*ns, mo, false, array);
-		  ns->addSymbolic(mo, array);
-		 		  
-		  llvm::outs() << "Added SYMBOLIC constraint to byte " << idx2 << " in new state \n";
-	        
-		  break;
-
-		  // Optimize for constants: just set the concrete value in the store of the forked state
-		case PTestByte::EQ:
-
-		  // XXX: check that no constraint becomes invalid because of this
-		  // XXX: Also, should this be made symbolic so its value can be selected for insertion in the ktest file?
-		  os->write8(idx2, byte->value);
-		  
-		  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " in new state \n";		  
-		  break;
-		  
-		default:
-		  llvm::outs() << "Unsupported constraint type " << byte->otype << " - passing \n";
-		  break;
-		}
+	      infeasible = true;
+	      break;
 	    }
 	}
 
+      // Pass the ptest if loaded constraints are not satisfiable from our current state
+      if (infeasible)
+	continue;
+      
       // Print constraints available in store after state creation
       llvm::outs() << "\n **** New state constraints after loading: **** \n";
       unsigned int i = 0;
@@ -2287,10 +2321,10 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	  llvm::outs() << "\n ---[ Constraint " << i << ": " << e << "\n";
 	}
 
-      //XXX: We stop after one test, for debug purpose
-      //break;
-      
-    }  
+      //XXX: Uncomment if you want to stop after one ptest, for debug purpose
+      //break;      
+    }
+  
   return;
 }
 

@@ -194,6 +194,7 @@ public:
 
   void addSymbolic(const MemoryObject *mo, const Array *array);
   void addConstraint(ref<Expr> e, unsigned char attrib) { constraints.addConstraint(e, attrib); }
+  bool addAndcheckConstraint(ref<Expr> e, unsigned char attrib) { return (constraints.addAndcheckConstraint(e, attrib)); }
 
   bool merge(const ExecutionState &b);
   void dumpStack(llvm::raw_ostream &out) const;
