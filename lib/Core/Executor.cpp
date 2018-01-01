@@ -2161,9 +2161,44 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  
 	  // Optimize for constants: just set the concrete value in the store of the forked state
 	case PTestByte::EQ:
-	  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
-	  uniqueName = ss.str();
-	  array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
+	      
+	  // First make sure we dont import constraint on data corresponding to a different key
+	  if (!strcmp(obj->name, "key"))
+	    {
+	      llvm::outs() << "Found KEY expr - will check for key import consistency \n";
+	      ref<Expr> ec = os->read8(idx2);
+	      ConstantExpr *ce = dyn_cast<ConstantExpr>(ec);
+	      ReadExpr *re = dyn_cast<ReadExpr>(ec);
+	      std::string target_name;
+
+	      if (ce && ce->getZExtValue(ce->getWidth()) != byte->value)
+		{
+		  llvm::outs() << "Key constraints inconsistent - passing ptest (width = " << ce->getWidth() << ")\n";
+		  terminateState(ns);
+		  return (false);
+		}
+	      else if (!ce && re)
+		{
+		  target_name = re->updates.root->name;
+		  llvm::outs() << "---[ Recovered ReadExpr name " << target_name << "\n";
+		}
+	      else if (!ce && !re)
+		{
+		  llvm::outs() << "Key expression was neither constant nor a read - could not apply filter \n";
+		}
+	      else		
+		llvm::outs() << "Key expression was constant and state is consistent with injected constraints \n";
+	      array = arrayCache.CreateArray(target_name, 1);   // 1 byte array	  
+	    }
+
+	  // Other expressions than keys are not checked for consistency
+	  else
+	    {	  
+	      ss << std::string(obj->name) << "_symbolic_byte" << idx2;
+	      uniqueName = ss.str();
+	      array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
+	    }	 
+	  
 	  v    = Expr::createTempRead(array, Expr::Int8);  
 	  v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
 	  curcond = EqExpr::create(v, v2);
@@ -2178,7 +2213,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  os->write8(idx2, byte->value);
 	  bindObjectInState(ns, mo, false, array);
 	  ns.addSymbolic(mo, array);		 		  
-	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " in new state \n";		  
+	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " (" << (int) byte->value << ") in new state \n";		  
 	  break;
 	  
 	default:
@@ -2361,12 +2396,14 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   // Print AddressSpace symbolic state at each instruction
   // Wrap this around an option
+  /*
   for (MemoryMap::iterator it = state.addressSpace.objects.begin();
        it != state.addressSpace.objects.end(); ++it)
     {
       ObjectState *os = it->second;
       os->print_symbolics();
     }
+  */
 
   // Print LLVM instruction before symbolic execution
   Function *f = i->getParent()->getParent();
@@ -2882,8 +2919,11 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	{
 	  (*debugHeapFile) << "Now Going to executeCall for symbolic stub " << f->getName() << "\n";
 	}
-      
-      executeCall(state, ki, f, arguments);
+
+      if (!isTransferStub)
+	executeCall(state, ki, f, arguments);
+      else
+	llvm::outs() << "Did not call " << f->getName() << " but created ptest file \n";
 
       if (f && (symStubs.find(f->getName()) != symStubs.end()))
       {
