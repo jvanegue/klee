@@ -13,6 +13,7 @@
 #include "klee/Constraints.h"
 #include "klee/Expr.h"
 #include "klee/Internal/ADT/TreeStream.h"
+#include "klee/MergeHandler.h"
 
 // FIXME: We do not want to be exposing these? :(
 #include "../../lib/Core/AddressSpace.h"
@@ -172,6 +173,10 @@ public:
 
   // Used to store the base operand of getElementPtr instruction
   std::map<llvm::Instruction *, ref<Expr> > getElmntPtrBases;
+
+  // The objects handling the klee_open_merge calls this state ran through
+  std::vector<ref<MergeHandler> > openMergeStack;
+
 
 private:
   ExecutionState() : ptreeNode(0), id(0), last_heap_state_id(0), last_sym_state_id(0) {}

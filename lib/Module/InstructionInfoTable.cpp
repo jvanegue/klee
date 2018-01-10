@@ -10,17 +10,10 @@
 #include "klee/Internal/Module/InstructionInfoTable.h"
 #include "klee/Config/Version.h"
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
-#else
-#include "llvm/Function.h"
-#include "llvm/Instructions.h"
-#include "llvm/IntrinsicInst.h"
-#include "llvm/Module.h"
-#endif
 
 # if LLVM_VERSION_CODE < LLVM_VERSION(3,5)
 #include "llvm/Assembly/AssemblyAnnotationWriter.h"
@@ -37,10 +30,8 @@
 
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3,5)
 #include "llvm/IR/DebugInfo.h"
-#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
-#include "llvm/DebugInfo.h"
 #else
-#include "llvm/Analysis/DebugInfo.h"
+#include "llvm/DebugInfo.h"
 #endif
 
 #include "llvm/Analysis/ValueTracking.h"
@@ -120,7 +111,7 @@ InstructionInfoTable::InstructionInfoTable(Module *m)
 
   for (Module::iterator fnIt = m->begin(), fn_ie = m->end(); 
        fnIt != fn_ie; ++fnIt) {
-    Function *fn = static_cast<Function *>(fnIt);
+    Function *fn = &*fnIt;
 
     // We want to ensure that as all instructions have source information, if
     // available. Clang sometimes will not write out debug information on the
@@ -193,6 +184,6 @@ InstructionInfoTable::getFunctionInfo(const Function *f) const {
     // and construct a test case for it if it does, though.
     return dummyInfo;
   } else {
-    return getInfo(static_cast<const Instruction *>(f->begin()->begin()));
+    return getInfo(&*(f->begin()->begin()));
   }
 }

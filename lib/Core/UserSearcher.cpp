@@ -13,6 +13,8 @@
 #include "Executor.h"
 
 #include "klee/Internal/Support/ErrorHandling.h"
+#include "klee/CommandLine.h"
+
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -53,17 +55,21 @@ namespace {
             cl::desc("Amount of time to batch when using --use-batching-search"),
             cl::init(5.0));
 
-
-  cl::opt<bool>
-  UseMerge("use-merge", 
-           cl::desc("Enable support for klee_merge() (experimental)"));
- 
-  cl::opt<bool>
-  UseBumpMerge("use-bump-merge", 
-           cl::desc("Enable support for klee_merge() (extra experimental)"));
-
 }
 
+
+void klee::initializeSearchOptions() {
+  // default values
+  if (CoreSearch.empty()) {
+    if (UseMerge){
+      CoreSearch.push_back(Searcher::NURS_CovNew);
+      klee_warning("--use-merge enabled. Using NURS_CovNew as default searcher.");
+    } else {
+      CoreSearch.push_back(Searcher::RandomPath);
+      CoreSearch.push_back(Searcher::NURS_CovNew);
+    }
+  }
+}
 
 bool klee::userSearcherRequiresMD2U() {
   return (std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::NURS_MD2U) != CoreSearch.end() ||
@@ -95,12 +101,6 @@ Searcher *getNewSearcher(Searcher::CoreSearchType type, Executor &executor) {
 
 Searcher *klee::constructUserSearcher(Executor &executor) {
 
-  // default values
-  if (CoreSearch.size() == 0) {
-    CoreSearch.push_back(Searcher::RandomPath);
-    CoreSearch.push_back(Searcher::NURS_CovNew);
-  }
-
   Searcher *searcher = getNewSearcher(CoreSearch[0], executor);
   
   if (CoreSearch.size() > 1) {
@@ -113,23 +113,16 @@ Searcher *klee::constructUserSearcher(Executor &executor) {
     searcher = new InterleavedSearcher(s);
   }
 
+  if (UseMerge) {
+    if (std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::RandomPath) != CoreSearch.end()){
+      klee_error("use-merge currently does not support random-path, please use another search strategy");
+    }
+  }
+
   if (UseBatchingSearch) {
     searcher = new BatchingSearcher(searcher, BatchTime, BatchInstructions);
   }
 
-  // merge support is experimental
-  if (UseMerge) {
-    if (UseBumpMerge)
-      klee_error("use-merge and use-bump-merge cannot be used together");
-    // RandomPathSearcher cannot be used in conjunction with MergingSearcher,
-    // see MergingSearcher::selectState() for explanation.
-    if (std::find(CoreSearch.begin(), CoreSearch.end(), Searcher::RandomPath) != CoreSearch.end())
-      klee_error("use-merge currently does not support random-path, please use another search strategy");
-    searcher = new MergingSearcher(executor, searcher);
-  } else if (UseBumpMerge) {
-    searcher = new BumpMergingSearcher(executor, searcher);
-  }
-  
   if (UseIterativeDeepeningTimeSearch) {
     searcher = new IterativeDeepeningTimeSearcher(searcher);
   }

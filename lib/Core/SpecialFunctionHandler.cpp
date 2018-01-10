@@ -10,6 +10,7 @@
 #include "Memory.h"
 #include "SpecialFunctionHandler.h"
 #include "TimingSolver.h"
+#include "klee/MergeHandler.h"
 
 #include "klee/ExecutionState.h"
 
@@ -23,22 +24,12 @@
 
 #include "klee/CommandLine.h"
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/Module.h"
-#else
-#include "llvm/Module.h"
-#endif
 #include "llvm/ADT/Twine.h"
-
-#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
-#include "llvm/Target/TargetData.h"
-#elif LLVM_VERSION_CODE <= LLVM_VERSION(3, 2)
-#include "llvm/DataLayout.h"
-#else
 #include "llvm/IR/DataLayout.h"
-#endif
 
 #include <errno.h>
+#include <sstream>
 
 using namespace llvm;
 using namespace klee;
@@ -85,9 +76,8 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   addDNR("_exit", handleExit),
   { "exit", &SpecialFunctionHandler::handleExit, true, false, true },
   addDNR("klee_abort", handleAbort),
-  addDNR("klee_silent_exit", handleSilentExit),  
+  addDNR("klee_silent_exit", handleSilentExit),
   addDNR("klee_report_error", handleReportError),
-
   add("calloc", handleCalloc, true),
   add("free", handleFree, false),
   add("klee_assume", handleAssume, false),
@@ -104,7 +94,8 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("klee_is_symbolic", handleIsSymbolic, true),
   add("klee_make_symbolic", handleMakeSymbolic, false),
   add("klee_mark_global", handleMarkGlobal, false),
-  add("klee_merge", handleMerge, false),
+  add("klee_open_merge", handleOpenMerge, false),
+  add("klee_close_merge", handleCloseMerge, false),
   add("klee_prefer_cex", handlePreferCex, false),
   add("klee_posix_prefer_cex", handlePosixPreferCex, false),
   add("klee_print_expr", handlePrintExpr, false),
@@ -138,14 +129,15 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   // operator new(unsigned long)
   add("_Znwm", handleNew, true),
 
-  // clang -fsanitize=unsigned-integer-overflow
+  // Run clang with -fsanitize=signed-integer-overflow and/or
+  // -fsanitize=unsigned-integer-overflow
   add("__ubsan_handle_add_overflow", handleAddOverflow, false),
   add("__ubsan_handle_sub_overflow", handleSubOverflow, false),
   add("__ubsan_handle_mul_overflow", handleMulOverflow, false),
   add("__ubsan_handle_divrem_overflow", handleDivRemOverflow, false),
 
 #undef addDNR
-#undef add  
+#undef add
 };
 
 SpecialFunctionHandler::const_iterator SpecialFunctionHandler::begin() {
@@ -191,13 +183,7 @@ void SpecialFunctionHandler::prepare() {
       // Make sure NoReturn attribute is set, for optimization and
       // coverage counting.
       if (hi.doesNotReturn)
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
         f->addFnAttr(Attribute::NoReturn);
-#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
-        f->addFnAttr(Attributes::NoReturn);
-#else
-        f->addFnAttr(Attribute::NoReturn);
-#endif
 
       // Change to a declaration since we handle internally (simplifies
       // module and allows deleting dead code).
@@ -346,10 +332,41 @@ void SpecialFunctionHandler::handleReportError(ExecutionState &state,
 				 readStringAtAddress(state, arguments[3]).c_str());
 }
 
-void SpecialFunctionHandler::handleMerge(ExecutionState &state,
-                           KInstruction *target,
-                           std::vector<ref<Expr> > &arguments) {
-  // nop
+void SpecialFunctionHandler::handleOpenMerge(ExecutionState &state,
+    KInstruction *target,
+    std::vector<ref<Expr> > &arguments) {
+  if (!UseMerge) {
+    klee_warning_once(0, "klee_open_merge ignored, use '-use-merge'");
+    return;
+  }
+
+  state.openMergeStack.push_back(
+      ref<MergeHandler>(new MergeHandler(&executor)));
+
+  if (DebugLogMerge)
+    llvm::errs() << "open merge: " << &state << "\n";
+}
+
+void SpecialFunctionHandler::handleCloseMerge(ExecutionState &state,
+    KInstruction *target,
+    std::vector<ref<Expr> > &arguments) {
+  if (!UseMerge) {
+    klee_warning_once(0, "klee_close_merge ignored, use '-use-merge'");
+    return;
+  }
+  Instruction *i = target->inst;
+
+  if (DebugLogMerge)
+    llvm::errs() << "close merge: " << &state << " at " << i << '\n';
+
+  if (state.openMergeStack.empty()) {
+    std::ostringstream warning;
+    warning << &state << " ran into a close at " << i << " without a preceding open\n";
+    klee_warning(warning.str().c_str());
+  } else {
+    state.openMergeStack.back()->addClosedState(&state, i);
+    state.openMergeStack.pop_back();
+  }
 }
 
 void SpecialFunctionHandler::handleNew(ExecutionState &state,
@@ -700,15 +717,22 @@ void SpecialFunctionHandler::handleMakeSymbolic(ExecutionState &state,
                                                 std::vector<ref<Expr> > &arguments) {
   std::string name;
 
-  // FIXME: For backwards compatibility, we should eventually enforce the
-  // correct arguments.
-  if (arguments.size() == 2) {
+  // FIXME: For backwards compatibility. We should eventually enforce the
+  // correct arguments and types.
+  switch (arguments.size()) {
+    case 2:
+      klee_warning("klee_make_symbolic: deprecated number of arguments (2 instead of 3)");
+      break;
+    case 3:
+      name = readStringAtAddress(state, arguments[2]);
+      break;
+    default:
+      executor.terminateStateOnError(state, "illegal number of arguments to klee_make_symbolic(void*, size_t, char*)", Executor::User);
+      return;
+  }
+  if (name.length() == 0) {
     name = "unnamed";
-  } else {
-    // FIXME: Should be a user.err, not an assert.
-    assert(arguments.size()==3 &&
-           "invalid number of arguments to klee_make_symbolic");  
-    name = readStringAtAddress(state, arguments[2]);
+    klee_warning("klee_make_symbolic: renamed empty name to \"unnamed\"");
   }
 
   Executor::ExactResolutionList rl;
@@ -768,21 +792,21 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
 void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
-  executor.terminateStateOnError(state, "overflow on unsigned addition",
+  executor.terminateStateOnError(state, "overflow on addition",
                                  Executor::Overflow);
 }
 
 void SpecialFunctionHandler::handleSubOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
-  executor.terminateStateOnError(state, "overflow on unsigned subtraction",
+  executor.terminateStateOnError(state, "overflow on subtraction",
                                  Executor::Overflow);
 }
 
 void SpecialFunctionHandler::handleMulOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
-  executor.terminateStateOnError(state, "overflow on unsigned multiplication",
+  executor.terminateStateOnError(state, "overflow on multiplication",
                                  Executor::Overflow);
 }
 

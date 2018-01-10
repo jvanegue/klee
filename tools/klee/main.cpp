@@ -23,22 +23,12 @@
 #include "klee/Interpreter.h"
 #include "klee/Statistics.h"
 
-#if LLVM_VERSION_CODE > LLVM_VERSION(3, 2)
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
-#else
-#include "llvm/Constants.h"
-#include "llvm/Type.h"
-#include "llvm/InstrTypes.h"
-#include "llvm/Instruction.h"
-#include "llvm/Instructions.h"
-#include "llvm/LLVMContext.h"
-#include "llvm/Support/FileSystem.h"
-#endif
 #include "llvm/Support/Errno.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Bitcode/ReaderWriter.h"
@@ -47,11 +37,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 0)
-#include "llvm/Target/TargetSelect.h"
-#else
 #include "llvm/Support/TargetSelect.h"
-#endif
 #include "llvm/Support/Signals.h"
 
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
@@ -234,7 +220,8 @@ private:
 
   SmallString<128> m_outputDirectory;
 
-  unsigned m_testIndex;  // number of tests written so far
+  unsigned m_numTotalTests;     // Number of tests received from the interpreter
+  unsigned m_numGeneratedTests; // Number of tests successfully generated
   unsigned m_pathsExplored; // number of paths explored so far
 
   // used for writing .ktest files
@@ -246,7 +233,8 @@ public:
   ~KleeHandler();
 
   llvm::raw_ostream &getInfoStream() const { return *m_infoFile; }
-  unsigned getNumTestCases() { return m_testIndex; }
+  /// Returns the number of test cases successfully generated so far
+  unsigned getNumTestCases() { return m_numGeneratedTests; }
   unsigned getNumPathsExplored() { return m_pathsExplored; }
   void incPathsExplored() { m_pathsExplored++; }
 
@@ -272,15 +260,9 @@ public:
 };
 
 KleeHandler::KleeHandler(int argc, char **argv)
-  : m_interpreter(0),
-    m_pathWriter(0),
-    m_symPathWriter(0),
-    m_infoFile(0),
-    m_outputDirectory(),
-    m_testIndex(0),
-    m_pathsExplored(0),
-    m_argc(argc),
-    m_argv(argv) {
+    : m_interpreter(0), m_pathWriter(0), m_symPathWriter(0), m_infoFile(0),
+      m_outputDirectory(), m_numTotalTests(0), m_numGeneratedTests(0),
+      m_pathsExplored(0), m_argc(argc), m_argv(argv) {
 
   // create output directory (OutputDir or "klee-out-<i>")
   bool dir_given = OutputDir != "";
@@ -351,8 +333,8 @@ KleeHandler::KleeHandler(int argc, char **argv)
 }
 
 KleeHandler::~KleeHandler() {
-  if (m_pathWriter) delete m_pathWriter;
-  if (m_symPathWriter) delete m_symPathWriter;
+  delete m_pathWriter;
+  delete m_symPathWriter;
   fclose(klee_warning_file);
   fclose(klee_message_file);
   delete m_infoFile;
@@ -425,7 +407,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
     double start_time = util::getWallTime();
 
-    unsigned id = ++m_testIndex;
+    unsigned id = ++m_numTotalTests;
 
     if (success) {
       KTest b;
@@ -447,6 +429,8 @@ void KleeHandler::processTestCase(const ExecutionState &state,
 
       if (!kTest_toFile(&b, getOutputFilename(getTestFilename("ktest", id)).c_str())) {
         klee_warning("unable to write output test case, losing it");
+      } else {
+        ++m_numGeneratedTests;
       }
 
       for (unsigned i=0; i<b.numObjects; i++)
@@ -525,7 +509,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
       delete f;
     }
 
-    if (m_testIndex == StopAfterNTests)
+    if (m_numGeneratedTests == StopAfterNTests)
       m_interpreter->setHaltExecution(true);
 
     if (WriteTestInfo) {
@@ -586,11 +570,7 @@ std::string KleeHandler::getRunTimeLibraryPath(const char *argv0) {
   // C++ standard)
   void *MainExecAddr = (void *)(intptr_t)getRunTimeLibraryPath;
   SmallString<128> toolRoot(
-      #if LLVM_VERSION_CODE >= LLVM_VERSION(3,4)
       llvm::sys::fs::getMainExecutable(argv0, MainExecAddr)
-      #else
-      llvm::sys::Path::GetMainExecutable(argv0, MainExecAddr).str()
-      #endif
       );
 
   // Strip off executable so we have a directory path
@@ -637,12 +617,8 @@ static std::string strip(std::string &in) {
 
 static void parseArguments(int argc, char **argv) {
   cl::SetVersionPrinter(klee::printVersion);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 2)
   // This version always reads response files
   cl::ParseCommandLineOptions(argc, argv, " klee\n");
-#else
-  cl::ParseCommandLineOptions(argc, argv, " klee\n", /*ReadResponseFiles=*/ true);
-#endif
 }
 
 static int initEnv(Module *mainModule) {
@@ -668,10 +644,10 @@ static int initEnv(Module *mainModule) {
     klee_error("Cannot handle ""--posix-runtime"" when main() has less than two arguments.\n");
   }
 
-  Instruction *firstInst = static_cast<Instruction *>(mainFn->begin()->begin());
+  Instruction *firstInst = &*(mainFn->begin()->begin());
 
-  Value *oldArgc = static_cast<Argument *>(mainFn->arg_begin());
-  Value *oldArgv = static_cast<Argument *>(++mainFn->arg_begin());
+  Value *oldArgc = &*(mainFn->arg_begin());
+  Value *oldArgv = &*(++mainFn->arg_begin());
 
   AllocaInst* argcPtr =
     new AllocaInst(oldArgc->getType(), "argcPtr", firstInst);
@@ -693,13 +669,8 @@ static int initEnv(Module *mainModule) {
   std::vector<Value*> args;
   args.push_back(argcPtr);
   args.push_back(argvPtr);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
   Instruction* initEnvCall = CallInst::Create(initEnvFn, args,
 					      "", firstInst);
-#else
-  Instruction* initEnvCall = CallInst::Create(initEnvFn, args.begin(), args.end(),
-					      "", firstInst);
-#endif
   Value *argc = new LoadInst(argcPtr, "newArgc", firstInst);
   Value *argv = new LoadInst(argvPtr, "newArgv", firstInst);
 
@@ -747,7 +718,8 @@ static const char *modelledExternals[] = {
   "klee_is_symbolic",
   "klee_make_symbolic",
   "klee_mark_global",
-  "klee_merge",
+  "klee_open_merge",
+  "klee_close_merge",
   "klee_prefer_cex",
   "klee_posix_prefer_cex",
   "klee_print_expr",
@@ -759,10 +731,8 @@ static const char *modelledExternals[] = {
   "klee_warning_once",
   "klee_alias_function",
   "klee_stack_trace",
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 1)
   "llvm.dbg.declare",
   "llvm.dbg.value",
-#endif
   "llvm.va_start",
   "llvm.va_end",
   "malloc",
@@ -1041,14 +1011,13 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
 
   Function *f;
   // force import of __uClibc_main
-  mainModule->getOrInsertFunction("__uClibc_main",
-                                  FunctionType::get(Type::getVoidTy(ctx),
-                                               std::vector<LLVM_TYPE_Q Type*>(),
-                                                    true));
+  mainModule->getOrInsertFunction(
+      "__uClibc_main",
+      FunctionType::get(Type::getVoidTy(ctx), std::vector<Type *>(), true));
 
   // force various imports
   if (WithPOSIXRuntime) {
-    LLVM_TYPE_Q llvm::Type *i8Ty = Type::getInt8Ty(ctx);
+    llvm::Type *i8Ty = Type::getInt8Ty(ctx);
     mainModule->getOrInsertFunction("realpath",
                                     PointerType::getUnqual(i8Ty),
                                     PointerType::getUnqual(i8Ty),
@@ -1078,7 +1047,7 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
   // naming conflict.
   for (Module::iterator fi = mainModule->begin(), fe = mainModule->end();
        fi != fe; ++fi) {
-    Function *f = static_cast<Function *>(fi);
+    Function *f = &*fi;
     const std::string &name = f->getName();
     if (name[0]=='\01') {
       unsigned size = name.size();
@@ -1103,9 +1072,6 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
   replaceOrRenameFunction(mainModule, "__libc_open", "open");
   replaceOrRenameFunction(mainModule, "__libc_fcntl", "fcntl");
 
-  // Take care of fortified functions
-  replaceOrRenameFunction(mainModule, "__fprintf_chk", "fprintf");
-
   // XXX we need to rearchitect so this can also be used with
   // programs externally linked with uclibc.
 
@@ -1125,7 +1091,7 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
   const FunctionType *ft = uclibcMainFn->getFunctionType();
   assert(ft->getNumParams() == 7);
 
-  std::vector<LLVM_TYPE_Q Type*> fArgs;
+  std::vector<Type *> fArgs;
   fArgs.push_back(ft->getParamType(1)); // argc
   fArgs.push_back(ft->getParamType(2)); // argv
   Function *stub = Function::Create(FunctionType::get(Type::getInt32Ty(ctx), fArgs, false),
@@ -1137,17 +1103,13 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
   std::vector<llvm::Value*> args;
   args.push_back(llvm::ConstantExpr::getBitCast(userMainFn,
                                                 ft->getParamType(0)));
-  args.push_back(static_cast<Argument *>(stub->arg_begin())); // argc
-  args.push_back(static_cast<Argument *>(++stub->arg_begin())); // argv
+  args.push_back(&*(stub->arg_begin())); // argc
+  args.push_back(&*(++stub->arg_begin())); // argv
   args.push_back(Constant::getNullValue(ft->getParamType(3))); // app_init
   args.push_back(Constant::getNullValue(ft->getParamType(4))); // app_fini
   args.push_back(Constant::getNullValue(ft->getParamType(5))); // rtld_fini
   args.push_back(Constant::getNullValue(ft->getParamType(6))); // stack_end
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
   CallInst::Create(uclibcMainFn, args, "", bb);
-#else
-  CallInst::Create(uclibcMainFn, args.begin(), args.end(), "", bb);
-#endif
 
   new UnreachableInst(ctx, bb);
 
@@ -1260,11 +1222,7 @@ int main(int argc, char **argv, char **envp) {
   case KleeLibc: {
     // FIXME: Find a reasonable solution for this.
     SmallString<128> Path(Opts.LibraryDir);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3,3)
     llvm::sys::path::append(Path, "klee-libc.bc");
-#else
-    llvm::sys::path::append(Path, "libklee-libc.bca");
-#endif
     mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
     assert(mainModule && "unable to link with klee-libc");
     break;

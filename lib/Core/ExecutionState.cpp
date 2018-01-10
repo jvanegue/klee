@@ -17,12 +17,7 @@
 #include "klee/Expr.h"
 
 #include "Memory.h"
-
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/Function.h"
-#else
-#include "llvm/Function.h"
-#endif
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -136,12 +131,11 @@ ExecutionState::ExecutionState(const ExecutionState& state):
     ptreeNode(state.ptreeNode),
     symbolics(state.symbolics),
     arrayNames(state.arrayNames),
-
     id(0),
     last_heap_state_id(0),
     last_sym_state_id(0),
-    
     getElmntPtrBases(state.getElmntPtrBases)
+    openMergeStack(state.openMergeStack)
 {
   for (unsigned int i=0; i<symbolics.size(); i++)
     symbolics[i].first->refCount++;

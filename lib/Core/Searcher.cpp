@@ -24,15 +24,9 @@
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
 #include "klee/Internal/Support/ErrorHandling.h"
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
-#else
-#include "llvm/Constants.h"
-#include "llvm/Instructions.h"
-#include "llvm/Module.h"
-#endif
 #include "llvm/Support/CommandLine.h"
 
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
@@ -47,11 +41,6 @@
 
 using namespace klee;
 using namespace llvm;
-
-namespace {
-  cl::opt<bool>
-  DebugLogMerge("debug-log-merge");
-}
 
 namespace klee {
   extern RNG theRNG;
@@ -90,6 +79,7 @@ void DFSSearcher::update(ExecutionState *current,
         }
       }
 
+      (void) ok;
       assert(ok && "invalid state removed");
     }
    }
@@ -109,8 +99,9 @@ void BFSSearcher::update(ExecutionState *current,
   if (!addedStates.empty() && current &&
       std::find(removedStates.begin(), removedStates.end(), current) ==
           removedStates.end()) {
-    assert(states.front() == current);
-    states.pop_front();
+    auto pos = std::find(states.begin(), states.end(), current);
+    assert(pos != states.end());
+    states.erase(pos);
     states.push_back(current);
   }
 
@@ -135,6 +126,7 @@ void BFSSearcher::update(ExecutionState *current,
         }
       }
 
+      (void) ok;
       assert(ok && "invalid state removed");
     }
   }
@@ -311,217 +303,6 @@ RandomPathSearcher::update(ExecutionState *current,
 
 bool RandomPathSearcher::empty() { 
   return executor.states.empty(); 
-}
-
-///
-
-BumpMergingSearcher::BumpMergingSearcher(Executor &_executor, Searcher *_baseSearcher) 
-  : executor(_executor),
-    baseSearcher(_baseSearcher),
-    mergeFunction(executor.kmodule->kleeMergeFn) {
-}
-
-BumpMergingSearcher::~BumpMergingSearcher() {
-  delete baseSearcher;
-}
-
-///
-
-Instruction *BumpMergingSearcher::getMergePoint(ExecutionState &es) {  
-  if (mergeFunction) {
-    Instruction *i = es.pc->inst;
-
-    if (i->getOpcode()==Instruction::Call) {
-      CallSite cs(cast<CallInst>(i));
-      if (mergeFunction==cs.getCalledFunction())
-        return i;
-    }
-  }
-
-  return 0;
-}
-
-ExecutionState &BumpMergingSearcher::selectState() {
-entry:
-  // out of base states, pick one to pop
-  if (baseSearcher->empty()) {
-    std::map<llvm::Instruction*, ExecutionState*>::iterator it = 
-      statesAtMerge.begin();
-    ExecutionState *es = it->second;
-    statesAtMerge.erase(it);
-    ++es->pc;
-
-    baseSearcher->addState(es);
-  }
-
-  ExecutionState &es = baseSearcher->selectState();
-
-  if (Instruction *mp = getMergePoint(es)) {
-    std::map<llvm::Instruction*, ExecutionState*>::iterator it = 
-      statesAtMerge.find(mp);
-
-    baseSearcher->removeState(&es);
-
-    if (it==statesAtMerge.end()) {
-      statesAtMerge.insert(std::make_pair(mp, &es));
-    } else {
-      ExecutionState *mergeWith = it->second;
-      if (mergeWith->merge(es)) {
-        // hack, because we are terminating the state we need to let
-        // the baseSearcher know about it again
-        baseSearcher->addState(&es);
-        executor.terminateState(es);
-      } else {
-        it->second = &es; // the bump
-        ++mergeWith->pc;
-
-        baseSearcher->addState(mergeWith);
-      }
-    }
-
-    goto entry;
-  } else {
-    return es;
-  }
-}
-
-void BumpMergingSearcher::update(
-    ExecutionState *current, const std::vector<ExecutionState *> &addedStates,
-    const std::vector<ExecutionState *> &removedStates) {
-  baseSearcher->update(current, addedStates, removedStates);
-}
-
-///
-
-MergingSearcher::MergingSearcher(Executor &_executor, Searcher *_baseSearcher) 
-  : executor(_executor),
-    baseSearcher(_baseSearcher),
-    mergeFunction(executor.kmodule->kleeMergeFn) {
-}
-
-MergingSearcher::~MergingSearcher() {
-  delete baseSearcher;
-}
-
-///
-
-Instruction *MergingSearcher::getMergePoint(ExecutionState &es) {
-  if (mergeFunction) {
-    Instruction *i = es.pc->inst;
-
-    if (i->getOpcode()==Instruction::Call) {
-      CallSite cs(cast<CallInst>(i));
-      if (mergeFunction==cs.getCalledFunction())
-        return i;
-    }
-  }
-
-  return 0;
-}
-
-ExecutionState &MergingSearcher::selectState() {
-  // FIXME: this loop is endless if baseSearcher includes RandomPathSearcher.
-  // The reason is that RandomPathSearcher::removeState() does nothing...
-  while (!baseSearcher->empty()) {
-    ExecutionState &es = baseSearcher->selectState();
-    if (getMergePoint(es)) {
-      baseSearcher->removeState(&es, &es);
-      statesAtMerge.insert(&es);
-    } else {
-      return es;
-    }
-  }
-  
-  // build map of merge point -> state list
-  std::map<Instruction*, std::vector<ExecutionState*> > merges;
-  for (std::set<ExecutionState*>::const_iterator it = statesAtMerge.begin(),
-         ie = statesAtMerge.end(); it != ie; ++it) {
-    ExecutionState &state = **it;
-    Instruction *mp = getMergePoint(state);
-    
-    merges[mp].push_back(&state);
-  }
-  
-  if (DebugLogMerge)
-    llvm::errs() << "-- all at merge --\n";
-  for (std::map<Instruction*, std::vector<ExecutionState*> >::iterator
-         it = merges.begin(), ie = merges.end(); it != ie; ++it) {
-    if (DebugLogMerge) {
-      llvm::errs() << "\tmerge: " << it->first << " [";
-      for (std::vector<ExecutionState*>::iterator it2 = it->second.begin(),
-             ie2 = it->second.end(); it2 != ie2; ++it2) {
-        ExecutionState *state = *it2;
-        llvm::errs() << state << ", ";
-      }
-      llvm::errs() << "]\n";
-    }
-
-    // merge states
-    std::set<ExecutionState*> toMerge(it->second.begin(), it->second.end());
-    while (!toMerge.empty()) {
-      ExecutionState *base = *toMerge.begin();
-      toMerge.erase(toMerge.begin());
-      
-      std::set<ExecutionState*> toErase;
-      for (std::set<ExecutionState*>::iterator it = toMerge.begin(),
-             ie = toMerge.end(); it != ie; ++it) {
-        ExecutionState *mergeWith = *it;
-        
-        if (base->merge(*mergeWith)) {
-          toErase.insert(mergeWith);
-        }
-      }
-      if (DebugLogMerge && !toErase.empty()) {
-        llvm::errs() << "\t\tmerged: " << base << " with [";
-        for (std::set<ExecutionState*>::iterator it = toErase.begin(),
-               ie = toErase.end(); it != ie; ++it) {
-          if (it!=toErase.begin()) llvm::errs() << ", ";
-          llvm::errs() << *it;
-        }
-        llvm::errs() << "]\n";
-      }
-      for (std::set<ExecutionState*>::iterator it = toErase.begin(),
-             ie = toErase.end(); it != ie; ++it) {
-        std::set<ExecutionState*>::iterator it2 = toMerge.find(*it);
-        assert(it2!=toMerge.end());
-        executor.terminateState(**it);
-        toMerge.erase(it2);
-      }
-
-      // step past merge and toss base back in pool
-      statesAtMerge.erase(statesAtMerge.find(base));
-      ++base->pc;
-      baseSearcher->addState(base);
-    }  
-  }
-  
-  if (DebugLogMerge)
-    llvm::errs() << "-- merge complete, continuing --\n";
-  
-  return selectState();
-}
-
-void
-MergingSearcher::update(ExecutionState *current,
-                        const std::vector<ExecutionState *> &addedStates,
-                        const std::vector<ExecutionState *> &removedStates) {
-  if (!removedStates.empty()) {
-    std::vector<ExecutionState *> alt = removedStates;
-    for (std::vector<ExecutionState *>::const_iterator
-             it = removedStates.begin(),
-             ie = removedStates.end();
-         it != ie; ++it) {
-      ExecutionState *es = *it;
-      std::set<ExecutionState*>::const_iterator it2 = statesAtMerge.find(es);
-      if (it2 != statesAtMerge.end()) {
-        statesAtMerge.erase(it2);
-        alt.erase(std::remove(alt.begin(), alt.end(), es), alt.end());
-      }
-    }    
-    baseSearcher->update(current, addedStates, alt);
-  } else {
-    baseSearcher->update(current, addedStates, removedStates);
-  }
 }
 
 ///

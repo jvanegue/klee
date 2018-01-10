@@ -6,7 +6,11 @@ its autoconf/Makefile based build system.
 ## Useful top level targets
 
 * `check` - Build and run all tests.
-* `clean` - Clean the build tree. Note this won't clean the runtime build.
+* `clean` - Invoke CMake's built-in target to clean the build tree.  Note this
+  won't invoke the `clean_*` targets. It is advised that the `clean_all` target
+  is used instead.
+* `clean_all` - Run all clean targets.
+* `clean_doxygen` - Clean doxygen build tree.
 * `clean_runtime` - Clean the runtime build tree.
 * `docs` - Build documentation
 * `edit_cache` - Show cmake/ccmake/cmake-gui interface for chaning configure options.
@@ -55,6 +59,8 @@ cmake -DCMAKE_BUILD_TYPE=Release /path/to/klee/src
 
 * `ENABLE_UNIT_TESTS` (BOOLEAN) - Enable KLEE unit tests.
 
+* `ENABLE_ZLIB` (BOOLEAN) - Enable zlib support.
+
 * `GTEST_SRC_DIR` (STRING) - Path to GTest source tree.
 
 * `KLEE_ENABLE_TIMESTAMP` (BOOLEAN) - Enable timestamps in KLEE sources.
@@ -86,7 +92,5 @@ cmake -DCMAKE_BUILD_TYPE=Release /path/to/klee/src
 
 * `USE_CMAKE_FIND_PACKAGE_LLVM` (BOOLEAN) - Use `find_package(LLVM CONFIG)`
    to find LLVM.
-
-* `USE_CXX11` (BOOLEAN) - Use C++11.
 
 * `WARNINGS_AS_ERRORS` (BOOLEAN) - Treat warnings as errors when building KLEE.

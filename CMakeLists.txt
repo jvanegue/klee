@@ -46,7 +46,7 @@ project(KLEE CXX C)
 # Project version
 ###############################################################################
 set(KLEE_VERSION_MAJOR 1)
-set(KLEE_VERSION_MINOR 3)
+set(KLEE_VERSION_MINOR 4)
 set(KLEE_VERSION_PATCH 0)
 set(KLEE_VERSION_TWEAK 0)
 set(KLEE_VERSION "${KLEE_VERSION_MAJOR}.${KLEE_VERSION_MINOR}.${KLEE_VERSION_PATCH}.${KLEE_VERSION_TWEAK}")
@@ -150,6 +150,18 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/modules")
 
 ################################################################################
+# Compiler flags for KLEE components
+# Subsequent commands will append to these. These are used instead of
+# directly modifying CMAKE_CXX_FLAGS so that other code can be easily built with
+# different flags.
+################################################################################
+set(KLEE_COMPONENT_EXTRA_INCLUDE_DIRS "")
+set(KLEE_COMPONENT_CXX_DEFINES "")
+set(KLEE_COMPONENT_CXX_FLAGS "")
+set(KLEE_SOLVER_LIBRARIES "")
+set(KLEE_COMPONENT_EXTRA_LIBRARIES "")
+
+################################################################################
 # Assertions
 ################################################################################
 option(ENABLE_KLEE_ASSERTS "Enable KLEE assertions" ON)
@@ -158,7 +170,7 @@ if (ENABLE_KLEE_ASSERTS)
   # Assume that -DNDEBUG isn't set.
 else()
   message(STATUS "KLEE assertions disabled")
-  list(APPEND KLEE_COMPONENT_CXX_DEFINES "NDEBUG")
+  list(APPEND KLEE_COMPONENT_CXX_DEFINES "-DNDEBUG")
 endif()
 
 ################################################################################
@@ -178,17 +190,6 @@ include("${CMAKE_SOURCE_DIR}/cmake/string_to_list.cmake")
 include("${CMAKE_SOURCE_DIR}/cmake/klee_component_add_cxx_flag.cmake")
 include("${CMAKE_SOURCE_DIR}/cmake/add_global_flag.cmake")
 
-################################################################################
-# Compiler flags for KLEE components
-# Subsequent commands will append to these. These are used instead of
-# directly modifying CMAKE_CXX_FLAGS so that other code can be easily built with
-# different flags.
-################################################################################
-set(KLEE_COMPONENT_EXTRA_INCLUDE_DIRS "")
-set(KLEE_COMPONENT_CXX_DEFINES "")
-set(KLEE_COMPONENT_CXX_FLAGS "")
-set(KLEE_SOLVER_LIBRARIES "")
-set(KLEE_COMPONENT_EXTRA_LIBRARIES "")
 
 ################################################################################
 # Find LLVM
@@ -222,6 +223,21 @@ if (LLVM_ENABLE_ASSERTIONS)
   set(ENABLE_KLEE_DEBUG 1) # for config.h
 else()
   unset(ENABLE_KLEE_DEBUG) # for config.h
+endif()
+
+# Warn about mixing build types.
+# This is likely a bad idea because some of LLVM's header files use the NDEBUG
+# macro which can change things like data layout.
+if (LLVM_ENABLE_ASSERTIONS AND (NOT ENABLE_KLEE_ASSERTS))
+  message(WARNING
+    "LLVM was built with assertions but KLEE will be built without them.\n"
+    "This might lead to unexpected behaviour."
+  )
+elseif ((NOT LLVM_ENABLE_ASSERTIONS) AND ENABLE_KLEE_ASSERTS)
+  message(WARNING
+    "LLVM was built without assertions but KLEE will be built with them.\n"
+    "This might lead to unexpected behaviour."
+  )
 endif()
 
 if (LLVM_ENABLE_VISIBILITY_INLINES_HIDDEN)
@@ -266,23 +282,12 @@ endif()
 ################################################################################
 # C++ version
 ################################################################################
-option(USE_CXX11 "Use C++11" OFF)
-if ("${LLVM_PACKAGE_VERSION}" VERSION_GREATER "3.5.0")
-  message(STATUS "Using LLVM >= 3.5.0. Forcing using C++11")
-  set(USE_CXX11 ON CACHE BOOL "Use C++11" FORCE)
-endif()
-
-if (USE_CXX11)
-  message(STATUS "Enabling C++11")
-  # FIXME: Use CMake's own mechanism for managing C++ version.
-  # Set globally because it is unlikely we would want to compile
-  # using mixed C++ versions.
+if ("${CMAKE_VERSION}" VERSION_LESS "3.1")
   add_global_cxx_flag("-std=c++11" REQUIRED)
-else()
-  # This is needed because with GCC 6 the default changed from gnu++98 to
-  # gnu++14.
-  add_global_cxx_flag("-std=gnu++98" REQUIRED)
-endif()
+else ()
+  set(CMAKE_CXX_STANDARD 11)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+endif ()
 
 ################################################################################
 # Warnings
@@ -292,83 +297,12 @@ include(${CMAKE_SOURCE_DIR}/cmake/compiler_warnings.cmake)
 ################################################################################
 # Solvers
 ################################################################################
-
-# STP: Use CMake facility to detect. The user can pass `-DSTP_DIR=` to force
-# a particular directory.
-option(ENABLE_SOLVER_STP "Enable STP solver support" OFF)
-if (ENABLE_SOLVER_STP)
-  message(STATUS "STP solver support enabled")
-  # Although find_package() will set `STP_DIR` for us add it here so that
-  # is displayed in `ccmake` and `cmake-gui`.
-  set(STP_DIR "" CACHE PATH "Path to directory containing STPConfig.cmake")
-  find_package(STP CONFIG)
-  if (STP_FOUND)
-    message(STATUS "Found STP version ${STP_VERSION}")
-    # Try the STP shared library first
-    if ("${STP_SHARED_LIBRARY}" STREQUAL "")
-      # Try the static library instead
-      if ("${STP_STATIC_LIBRARY}" STREQUAL "")
-        message(FATAL_ERROR "Couldn't find STP shared or static library")
-      endif()
-      message(STATUS "Using STP static library")
-      list(APPEND KLEE_SOLVER_LIBRARIES "${STP_STATIC_LIBRARY}")
-    else()
-      message(STATUS "Using STP shared library")
-      list(APPEND KLEE_SOLVER_LIBRARIES "${STP_SHARED_LIBRARY}")
-    endif()
-    list(APPEND KLEE_COMPONENT_EXTRA_INCLUDE_DIRS "${STP_INCLUDE_DIRS}")
-    message(STATUS "STP_DIR: ${STP_DIR}")
-    set(ENABLE_STP 1) # For config.h
-  else()
-    message(FATAL_ERROR "STP not found. Try setting `-DSTP_DIR=/path` where"
-      " `/path` is the directory containing `STPConfig.cmake`")
-  endif()
-else()
-  message(STATUS "STP solver support disabled")
-  set(ENABLE_STP 0) # For config.h
-endif()
-
+# STP
+include(${CMAKE_SOURCE_DIR}/cmake/find_stp.cmake)
 # Z3
-option(ENABLE_SOLVER_Z3 "Enable Z3 solver support" OFF)
-if (ENABLE_SOLVER_Z3)
-  message(STATUS "Z3 solver support enabled")
-  find_package(Z3)
-  if (Z3_FOUND)
-    message(STATUS "Found Z3")
-    set(ENABLE_Z3 1) # For config.h
-    list(APPEND KLEE_COMPONENT_EXTRA_INCLUDE_DIRS ${Z3_INCLUDE_DIRS})
-    list(APPEND KLEE_SOLVER_LIBRARIES ${Z3_LIBRARIES})
-
-    # Check the signature of `Z3_get_error_msg()`
-    set (_old_CMAKE_REQUIRED_LIBRARIES "${CMAKE_REQUIRED_LIBRARIES}")
-    set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_REQUIRED_LIBRARIES} ${Z3_LIBRARIES})
-    check_prototype_definition(Z3_get_error_msg
-      "Z3_string Z3_get_error_msg(Z3_context c, Z3_error_code err)"
-      "NULL" "${Z3_INCLUDE_DIRS}/z3.h" HAVE_Z3_GET_ERROR_MSG_NEEDS_CONTEXT)
-    set(CMAKE_REQUIRED_LIBRARIES ${_old_CMAKE_REQUIRED_LIBRARIES})
-    if (HAVE_Z3_GET_ERROR_MSG_NEEDS_CONTEXT)
-      message(STATUS "Z3_get_error_msg requires context")
-    else()
-      message(STATUS "Z3_get_error_msg does not require context")
-    endif()
-  else()
-    message(FATAL_ERROR "Z3 not found.")
-  endif()
-else()
-  message(STATUS "Z3 solver support disabled")
-  set(ENABLE_Z3 0) # For config.h
-endif()
-
+include(${CMAKE_SOURCE_DIR}/cmake/find_z3.cmake)
 # metaSMT
-option(ENABLE_SOLVER_METASMT "Enable metaSMT solver support" OFF)
-if (ENABLE_SOLVER_METASMT)
-  message(STATUS "metaSMT solver support enabled")
-  set(ENABLE_METASMT 1)
-  include(${CMAKE_SOURCE_DIR}/cmake/find_metasmt.cmake)
-else()
-  message(STATUS "metaSMT solver support disabled")
-  set(ENABLE_METASMT 0) # For config.h
-endif()
+include(${CMAKE_SOURCE_DIR}/cmake/find_metasmt.cmake)
 
 if ((NOT ${ENABLE_Z3}) AND (NOT ${ENABLE_STP}) AND (NOT ${ENABLE_METASMT}))
   message(FATAL_ERROR "No solver was specified. At least one solver is required."
@@ -408,12 +342,24 @@ endif()
 # Support for compressed logs
 ################################################################################
 find_package(ZLIB)
-if (${ZLIB_FOUND})
-  set(HAVE_ZLIB_H 1) # For config.h
-	set(TARGET_LIBS ${TARGET_LIBS} z)
-  list(APPEND KLEE_COMPONENT_EXTRA_LIBRARIES ${ZLIB_LIBRARIES})
-  list(APPEND KLEE_COMPONENT_EXTRA_INCLUDE_DIRS ${ZLIB_INCLUDE_DIRS})
+if (ZLIB_FOUND)
+  set(ENABLE_ZLIB_DEFAULT ON)
 else()
+  set(ENABLE_ZLIB_DEFAULT OFF)
+endif()
+option(ENABLE_ZLIB "Enable use of zlib" ${ENABLE_ZLIB_DEFAULT})
+if (ENABLE_ZLIB)
+  message(STATUS "Zlib support enabled")
+  if (ZLIB_FOUND)
+    set(HAVE_ZLIB_H 1) # For config.h
+    set(TARGET_LIBS ${TARGET_LIBS} z)
+    list(APPEND KLEE_COMPONENT_EXTRA_LIBRARIES ${ZLIB_LIBRARIES})
+    list(APPEND KLEE_COMPONENT_EXTRA_INCLUDE_DIRS ${ZLIB_INCLUDE_DIRS})
+  else()
+    message(FATAL_ERROR "ENABLE_ZLIB is true but zlib could not be found")
+  endif()
+else()
+  message(STATUS "Zlib support disabled")
   unset(HAVE_ZLIB_H) # For config.h
 endif()
 
@@ -424,6 +370,8 @@ OPTION(ENABLE_TCMALLOC "Enable TCMalloc support" OFF)
 if (ENABLE_TCMALLOC)
   message(STATUS "TCMalloc support enabled")
   set(TCMALLOC_HEADER "gperftools/malloc_extension.h")
+  find_path(TCMALLOC_INCLUDE_DIR "${TCMALLOC_HEADER}")
+  set(CMAKE_REQUIRED_INCLUDES "${TCMALLOC_INCLUDE_DIR}")
   check_include_file_cxx("${TCMALLOC_HEADER}" HAVE_GPERFTOOLS_MALLOC_EXTENSION_H)
   if (${HAVE_GPERFTOOLS_MALLOC_EXTENSION_H})
     find_library(TCMALLOC_LIBRARIES
@@ -462,7 +410,8 @@ if (HAVE_SYS_CAPABILITY_H)
     NAMES cap
     DOC "libcap library"
   )
-  if (NOT LIBCAP_LIBRARIES)
+# On FreeBSD <sys/capabilities.h> is present in libc, so we don't require libcap there.
+  if (NOT LIBCAP_LIBRARIES AND NOT CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     message(FATAL_ERROR "Found \"sys/capability.h\" but could not find libcap")
   endif()
 else()
@@ -530,6 +479,23 @@ else()
   message(STATUS "SELinux support disabled")
   set(HAVE_SELINUX 0)
 endif()
+
+################################################################################
+# Global clean target
+################################################################################
+# CMake already uses the "clean" target name but it doesn't clean everything
+# unfortunately. We can't modify the target so we provide our own "clean_all"
+# target that runs clean. Other rules for performing clean up should declare
+# that "clean_all" depends on those rules.
+add_custom_target(clean_all
+  # Invoke CMake's own clean target
+  COMMAND
+    "${CMAKE_COMMAND}"
+    "--build"
+    "${CMAKE_BINARY_DIR}"
+    "--target"
+    "clean"
+)
 
 ################################################################################
 # KLEE runtime support
@@ -662,6 +628,15 @@ include_directories("${CMAKE_SOURCE_DIR}/include")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+
+################################################################################
+# Report the value of various variables to aid debugging
+################################################################################
+message(STATUS "KLEE_COMPONENT_EXTRA_INCLUDE_DIRS: '${KLEE_COMPONENT_EXTRA_INCLUDE_DIRS}'")
+message(STATUS "KLEE_COMPONENT_CXX_DEFINES: '${KLEE_COMPONENT_CXX_DEFINES}'")
+message(STATUS "KLEE_COMPONENT_CXX_FLAGS: '${KLEE_COMPONENT_CXX_FLAGS}'")
+message(STATUS "KLEE_COMPONENT_EXTRA_LIBRARIES: '${KLEE_COMPONENT_EXTRA_LIBRARIES}'")
 
 ################################################################################
 # KLEE components

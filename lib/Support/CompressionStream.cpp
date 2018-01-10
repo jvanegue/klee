@@ -10,8 +10,7 @@
 #include "klee/Config/Version.h"
 #ifdef HAVE_ZLIB_H
 #include "klee/Internal/Support/CompressionStream.h"
-#if (LLVM_VERSION_CODE >= LLVM_VERSION(3, 3) \
-    && LLVM_VERSION_CODE <= LLVM_VERSION(3, 4))
+#if (LLVM_VERSION_CODE == LLVM_VERSION(3, 4))
 #include "llvm/Support/system_error.h"
 #else
 #include "llvm/Support/FileSystem.h"
@@ -20,6 +19,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #endif
+#include <unistd.h>
 
 namespace klee {
 
@@ -27,12 +27,11 @@ compressed_fd_ostream::compressed_fd_ostream(const char *Filename,
                                              std::string &ErrorInfo)
     : llvm::raw_ostream(), pos(0) {
   ErrorInfo = "";
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
   // Open file in binary mode
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 5)
   std::error_code EC =
       llvm::sys::fs::openFileForWrite(Filename, FD, llvm::sys::fs::F_None);
-#elif LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
+#else
   llvm::error_code EC =
       llvm::sys::fs::openFileForWrite(Filename, FD, llvm::sys::fs::F_Binary);
 #endif
@@ -40,13 +39,6 @@ compressed_fd_ostream::compressed_fd_ostream(const char *Filename,
     ErrorInfo = EC.message();
     FD = -1;
   }
-#else
-  FD = ::open(Filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-  if (FD < 0) {
-    ErrorInfo = "Could not open file.";
-    FD = -1;
-  }
-#endif
   // Initialize the compression library
   strm.zalloc = 0;
   strm.zfree = 0;
@@ -99,7 +91,7 @@ void compressed_fd_ostream::write_impl(const char *Ptr, size_t Size) {
   // Check if there is still data to compress
   while (strm.avail_in != 0) {
     // compress data
-    int res = deflate(&strm, Z_NO_FLUSH);
+    int res = deflate(&strm, Z_NO_FLUSH); (void) res;
     assert(res == Z_OK);
     writeFullCompressedData();
   }

@@ -6,8 +6,10 @@
 #ifndef KLEE_COMMANDLINE_H
 #define KLEE_COMMANDLINE_H
 
-#include "llvm/Support/CommandLine.h"
 #include "klee/Config/config.h"
+
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace klee {
 
@@ -40,11 +42,7 @@ enum QueryLoggingSolverType
     SOLVER_SMTLIB ///< Log queries passed to solver (optimised) in .smt2 (SMT-LIBv2) format
 };
 
-/* Using cl::list<> instead of cl::bits<> results in quite a bit of ugliness when it comes to checking
- * if an option is set. Unfortunately with gcc4.7 cl::bits<> is broken with LLVM2.9 and I doubt everyone
- * wants to patch their copy of LLVM just for these options.
- */
-extern llvm::cl::list<QueryLoggingSolverType> queryLoggingOptions;
+extern llvm::cl::bits<QueryLoggingSolverType> queryLoggingOptions;
 
 enum CoreSolverType {
   STP_SOLVER,
@@ -63,20 +61,24 @@ enum MetaSMTBackendType
 {
     METASMT_BACKEND_STP,
     METASMT_BACKEND_Z3,
-    METASMT_BACKEND_BOOLECTOR
+    METASMT_BACKEND_BOOLECTOR,
+    METASMT_BACKEND_CVC4,
+    METASMT_BACKEND_YICES2
 };
 
 extern llvm::cl::opt<klee::MetaSMTBackendType> MetaSMTBackend;
 
 #endif /* ENABLE_METASMT */
 
-//A bit of ugliness so we can use cl::list<> like cl::bits<>, see queryLoggingOptions
-template <typename T>
-static bool optionIsSet(llvm::cl::list<T> &list, T option) {
-    return std::find(list.begin(), list.end(), option) != list.end();
-}
+class KCommandLine {
+public:
+  /// Hide all options except the ones in the specified category
+  static void HideUnrelatedOptions(llvm::cl::OptionCategory &Category);
 
+  /// Hide all options except the ones in the specified categories
+  static void HideUnrelatedOptions(
+      llvm::ArrayRef<const llvm::cl::OptionCategory *> Categories);
+};
 }
 
 #endif	/* KLEE_COMMANDLINE_H */
-

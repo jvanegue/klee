@@ -19,15 +19,9 @@
 #include "ObjectHolder.h"
 #include "MemoryManager.h"
 
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
-#include <llvm/IR/Function.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/Value.h>
-#else
-#include <llvm/Function.h>
-#include <llvm/Instruction.h>
-#include <llvm/Value.h>
-#endif
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Value.h"
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
@@ -161,9 +155,9 @@ ObjectState::ObjectState(const ObjectState &os)
 }
 
 ObjectState::~ObjectState() {
-  if (concreteMask) delete concreteMask;
-  if (flushMask) delete flushMask;
-  if (knownSymbolics) delete[] knownSymbolics;
+  delete concreteMask;
+  delete flushMask;
+  delete[] knownSymbolics;
   delete[] concreteStore;
 
   if (object)
@@ -236,9 +230,9 @@ const UpdateList &ObjectState::getUpdates() const {
 }
 
 void ObjectState::makeConcrete() {
-  if (concreteMask) delete concreteMask;
-  if (flushMask) delete flushMask;
-  if (knownSymbolics) delete[] knownSymbolics;
+  delete concreteMask;
+  delete flushMask;
+  delete[] knownSymbolics;
   concreteMask = 0;
   flushMask = 0;
   knownSymbolics = 0;
