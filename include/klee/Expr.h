@@ -280,7 +280,8 @@ public:
   /// Create a little endian read of the given type at offset 0 of the
   /// given object.
   static ref<Expr> createTempRead(const Array *array, Expr::Width w);
-  
+  static ref<Expr> createTempReadByteIndex(const Array *array, unsigned char index);
+    
   static ref<ConstantExpr> createPointer(uint64_t v);
 
   struct CreateArg;

@@ -51,7 +51,7 @@ namespace klee {
     /// \invariant forall o in objects, o->copyOnWriteOwner <= cowKey
     MemoryMap objects;
 
-    // @brief Number of local objects
+    // @brief Number of local objects, global objects, symbolic objects and fixed objects
     unsigned int local_obj_nbr;
     unsigned int global_obj_nbr;
     unsigned int symbolic_obj_nbr;

@@ -37,6 +37,12 @@ namespace {
 
 unsigned Expr::count = 0;
 
+ref<Expr> Expr::createTempReadByteIndex(const Array *array, unsigned char index) {
+  UpdateList ul(array, 0);
+  return ReadExpr::create(ul, 
+			  ConstantExpr::alloc(index, Expr::Int32));
+}
+
 ref<Expr> Expr::createTempRead(const Array *array, Expr::Width w) {
   UpdateList ul(array, 0);
 

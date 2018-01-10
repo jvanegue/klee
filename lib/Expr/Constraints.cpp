@@ -132,7 +132,7 @@ bool ConstraintManager::addConstraintInternal(ref<Expr> e, unsigned char attrib,
   
   switch (e->getKind()) {
   case Expr::Constant:
-    if (retcheck)
+    if (retcheck && cast<ConstantExpr>(e)->isFalse())
       return (false);
     assert(cast<ConstantExpr>(e)->isTrue() && 
            "attempt to add invalid (false) constraint");
@@ -179,7 +179,8 @@ void ConstraintManager::addConstraint(ref<Expr> e, unsigned char attrib) {
 }
 
 bool ConstraintManager::addAndcheckConstraint(ref<Expr> e, unsigned char attrib) {
-  e = simplifyExpr(e);
-  return (addConstraintInternal(e, attrib, true));
+  ref<Expr> opt = simplifyExpr(e);
+  bool res = addConstraintInternal(opt, attrib, true);
+  return (res);
 }
 
