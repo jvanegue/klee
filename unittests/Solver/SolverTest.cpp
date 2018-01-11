@@ -80,7 +80,7 @@ void testOperation(Solver &solver,
                                          partiallyConstantExpr);
     
     ConstraintManager constraints;
-    constraints.addConstraint(expr);
+    constraints.addConstraint(expr, 'T');
     bool res;
     bool success = solver.mustBeTrue(Query(constraints, queryExpr), res);
     EXPECT_EQ(true, success) << "Constraint solving failed";

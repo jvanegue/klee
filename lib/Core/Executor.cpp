@@ -93,6 +93,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <cxxabi.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -2413,7 +2414,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	}
       
 	
-        LLVM_TYPE_Q Type *t = caller->getType();
+      //LLVM_TYPE_Q Type *t = caller->getType();
 
         Type *t = caller->getType();
 
