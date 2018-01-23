@@ -2079,7 +2079,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  
 	  // Optimize for constants: just set the concrete value in the store of the forked state
 	case PTestByte::EQ:
-	 
+	  
 	  // First make sure we dont import constraint on data corresponding to a different key
 	  if (!strcmp(obj->name, "key"))
 	    {
