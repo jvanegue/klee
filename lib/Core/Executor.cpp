@@ -969,7 +969,13 @@ ExecutionState*	    Executor::pbranch(ExecutionState &state,
       
   ExecutionState *ns = state.branch();
   statsTracker->incNumFork();
-
+ 
+  KInstruction   &prevPC = *(ns->prevPC);
+  const char     *name = prevPC.inst->getOpcodeName();
+  unsigned int   cnbr = ns->constraints.size();
+  PTreeNode      *pt  = ns->ptreeNode;
+  unsigned int  depth = ns->depth;
+  
   // This is used to dump images of the state space
   this->trackEdges(state, *ns, EDGE_SYM, "pbranch");
   
@@ -977,6 +983,11 @@ ExecutionState*	    Executor::pbranch(ExecutionState &state,
   state.ptreeNode->data = 0;
   std::pair<PTree::Node*,PTree::Node*> res =
     processTree->split(state.ptreeNode, ns, &state);
+
+  llvm::outs() << "\n[[[[[ pbranch new state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+	       << " depth: " << depth << " ptnode: " << pt << " left: " << res.first << " right: "
+	       << res.second << " ]]]]] \n\n";
+  
   ns->ptreeNode = res.first;
   state.ptreeNode = res.second;
   for (unsigned i=0; i<N; ++i)
@@ -1999,15 +2010,16 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   // We execute from the klee-out directory so export ptests one level above
   std::string cwd = std::string(get_current_dir_name()) + "/" + dirname;
   
-  if (0 != chdir(cwd.c_str()))
+  if (chdir(cwd.c_str()))
     llvm::outs() << "Error during chdir to " << cwd << "\n";
-    
+  
   if (!pTest_toFile(&p, filename.c_str())) 
     klee_warning("Unable to write ptest file, throwing out");  
   else
     llvm::outs() << "Succesfully exported new ptest file " << filename << "\n";
   
-  chdir("..");
+  if (chdir(".."))
+    llvm::outs() << "Error during chdir .. \n";
   
   for (unsigned i=0; i<p.numObjects; i++)
     delete[] p.objects[i].bytes;
@@ -2035,7 +2047,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
       ref<Expr> v, v2;
       std::ostringstream ss;
       std::string uniqueName;
-      const Array *array;
+      const Array *array = NULL;
       ref<Expr> xe, dxe;
       ref<Expr> curcond;
       bool      possible;
@@ -2067,7 +2079,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  
 	  // Optimize for constants: just set the concrete value in the store of the forked state
 	case PTestByte::EQ:
-	      
+	 
 	  // First make sure we dont import constraint on data corresponding to a different key
 	  if (!strcmp(obj->name, "key"))
 	    {
@@ -2105,6 +2117,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	    }
 
 	  // Other expressions than keys are not checked for consistency
+	  // FIXME: we still need to give the good name instead of symbolic_byte!
 	  else
 	    {	  
 	      ss << std::string(obj->name) << "_symbolic_byte" << idx2;
@@ -2116,7 +2129,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
 	  curcond = EqExpr::create(v, v2);
 
-	  // XXX: This sometimes return false with boolean size != True, investigate
+	  // Will return true if the curcond is consistent with current path conditions
 	  possible = ns.addAndcheckConstraint(curcond, 'P');
 
 	  // DEBUG: Print constraints available in store after state creation
@@ -2134,15 +2147,17 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	      terminateState(ns);
 	      return (false);
 	    }
-
 	  llvm::outs() << "**** POSSIBLE PATH ENCOUNTERED at byte " << idx2 << " **** \n";
 	  
 	  nos = bindObjectInState(ns, mo, false, array);
 	  //os->write8(idx2, byte->value);
-	  nos->write8(idx2, byte->value);	  
-	  ns.addSymbolic(mo, array);
+	  nos->write8(idx2, byte->value);
 	  
-	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value " << byte->value << " (" << (int) byte->value << ") in new state \n";		  
+	  // Note: Array can be NULL and crash on getSymbolicSolution() -- do not enable unless update lists are tracked for Array
+	  //ns.addSymbolic(mo, array);
+	  
+	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value "
+		       << byte->value << " (" << (int) byte->value << ") in new state \n";		  
 	  break;
 	  
 	default:
@@ -2215,7 +2230,13 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
   /* Now load PTest file */
   std::vector<PTest*> tests;
   std::string cwd = std::string(get_current_dir_name()) + "/" + dirstr;
-  chdir(dirstr.c_str());
+  
+  if (chdir(dirstr.c_str()))
+    {
+      llvm::outs() << "Failed to chdir to ptest directory - returning \n";
+      return;
+    }
+  
   for (struct dirent *ent = readdir(dir); ent != NULL; ent = readdir(dir))
     {
       // Bypass non regular files
@@ -2229,7 +2250,12 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	}
       tests.push_back(ptest);
     }
-  chdir("..");
+  
+  if (chdir(".."))
+    {
+      llvm::outs() << "Failed to chdir out of ptest directory - returning \n";
+      return;
+    }
   
   unsigned int testnbr = tests.size();
   llvm::outs() << "Obtained " << testnbr << " persisted tests \n";
@@ -2278,6 +2304,16 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
       
       // Print constraints available in store after state creation
       llvm::outs() << "\n **** New state constraints after loading: **** \n";
+
+      KInstruction   &prevPC = *(ns->prevPC);
+      const char     *name = prevPC.inst->getOpcodeName();
+      unsigned int   cnbr = ns->constraints.size();
+      PTreeNode      *pt  = ns->ptreeNode;
+      unsigned int  depth = ns->depth;
+      
+      llvm::outs() << "\n[[[[[ New state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+		   << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";      
+      
       unsigned int i = 0;
       for (ConstraintManager::constraint_iterator it = ns->constraints.begin(); it != ns->constraints.end(); it++, i++)
 	{
@@ -3581,11 +3617,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
 void Executor::updateStates(ExecutionState *current) {
   if (searcher) {
+    //llvm::outs() << "updateStates: Searcher is non NULL - calling update method with " << addedStates.size() << " new states \n";
     searcher->update(current, addedStates, removedStates);
     searcher->update(nullptr, continuedStates, pausedStates);
     pausedStates.clear();
     continuedStates.clear();
+    //llvm::outs() << "updateStates: Searcher is non NULL - addedStates now has " << addedStates.size() << " elements aftrer update call \n";
   }
+
+  //llvm::outs() << "updateStates: Now inserting " << addedStates.size() << " new states in main state map \n";
   
   states.insert(addedStates.begin(), addedStates.end());
   addedStates.clear();
@@ -3806,6 +3846,16 @@ void Executor::run(ExecutionState &initialState) {
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
     KInstruction *ki = state.pc;
+
+    KInstruction   &prevPC = *(state.prevPC);
+    const char     *name = prevPC.inst->getOpcodeName();
+    unsigned int   cnbr = state.constraints.size();
+    PTreeNode      *pt  = state.ptreeNode;
+    unsigned int  depth = state.depth;
+
+    llvm::outs() << "[[[[[ Executor::run now visiting state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+		 << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n";
+    
     stepInstruction(state);
 
     executeInstruction(state, ki);
@@ -3906,6 +3956,15 @@ void Executor::continueState(ExecutionState &state){
 }
 
 void Executor::terminateState(ExecutionState &state) {
+
+  KInstruction   &prevPC = (*state.prevPC);
+  const char     *name = prevPC.inst->getOpcodeName();
+  unsigned int   cnbr = state.constraints.size();
+  PTreeNode      *pt  = state.ptreeNode;
+  unsigned int  depth = state.depth;
+  llvm::outs() << "[[[[[ terminateState opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
+  
   if (replayKTest && replayPosition!=replayKTest->numObjects) {
     klee_warning_once(replayKTest,
                       "replay did not consume all objects in test input.");
@@ -3933,6 +3992,16 @@ void Executor::terminateState(ExecutionState &state) {
 
 void Executor::terminateStateEarly(ExecutionState &state, 
                                    const Twine &message) {
+
+  KInstruction   &prevPC = (*state.prevPC);
+  const char     *name = prevPC.inst->getOpcodeName();
+  unsigned int   cnbr = state.constraints.size();
+  PTreeNode      *pt  = state.ptreeNode;
+  unsigned int  depth = state.depth;
+  llvm::outs() << "[[[[[ terminateStateEarly opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
+
+  
   if (!OnlyOutputStatesCoveringNew || state.coveredNew ||
       (AlwaysOutputSeeds && seedMap.count(&state)))
     interpreterHandler->processTestCase(state, (message + "\n").str().c_str(),
@@ -3941,6 +4010,15 @@ void Executor::terminateStateEarly(ExecutionState &state,
 }
 
 void Executor::terminateStateOnExit(ExecutionState &state) {
+
+  KInstruction   &prevPC = (*state.prevPC);
+  const char     *name = prevPC.inst->getOpcodeName();
+  unsigned int   cnbr = state.constraints.size();
+  PTreeNode      *pt  = state.ptreeNode;
+  unsigned int  depth = state.depth;
+  llvm::outs() << "[[[[[ terminateStateOnExit opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
+  
   if (!OnlyOutputStatesCoveringNew || state.coveredNew || 
       (AlwaysOutputSeeds && seedMap.count(&state)))
     interpreterHandler->processTestCase(state, 0, 0);
@@ -4177,11 +4255,11 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   return res;
 }
 
- ObjectState *Executor::bindObjectInState(ExecutionState &state, 
+ObjectState *Executor::bindObjectInState(ExecutionState &state, 
                                          const MemoryObject *mo,
                                          bool SaidIsLocal,
 					  const Array *array) {
-   ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
+  ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
    state.addressSpace.bindObject(mo, os);
 
    /*** H-KLEE: fine grained tracking of memory objects */

@@ -25,7 +25,9 @@ int main(int argc, char *argv[])
   else if (!strcmp(key, "snd"))
     {
       kv_read(key, value, &len);
-      unsigned char snd = value[0];
+      unsigned char snd
+
+	= value[0];
       value[snd] = 0x00;
     }
   return (0);
