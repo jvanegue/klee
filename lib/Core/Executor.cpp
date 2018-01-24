@@ -969,13 +969,7 @@ ExecutionState*	    Executor::pbranch(ExecutionState &state,
       
   ExecutionState *ns = state.branch();
   statsTracker->incNumFork();
- 
-  KInstruction   &prevPC = *(ns->prevPC);
-  const char     *name = prevPC.inst->getOpcodeName();
-  unsigned int   cnbr = ns->constraints.size();
-  PTreeNode      *pt  = ns->ptreeNode;
-  unsigned int  depth = ns->depth;
-  
+   
   // This is used to dump images of the state space
   this->trackEdges(state, *ns, EDGE_SYM, "pbranch");
   
@@ -984,9 +978,17 @@ ExecutionState*	    Executor::pbranch(ExecutionState &state,
   std::pair<PTree::Node*,PTree::Node*> res =
     processTree->split(state.ptreeNode, ns, &state);
 
+  /*
+  KInstruction   &prevPC = *(ns->prevPC);
+  const char     *name = prevPC.inst->getOpcodeName();
+  unsigned int   cnbr = ns->constraints.size();
+  PTreeNode      *pt  = ns->ptreeNode;
+  unsigned int  depth = ns->depth;
+  
   llvm::outs() << "\n[[[[[ pbranch new state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
 	       << " depth: " << depth << " ptnode: " << pt << " left: " << res.first << " right: "
 	       << res.second << " ]]]]] \n\n";
+  */
   
   ns->ptreeNode = res.first;
   state.ptreeNode = res.second;
@@ -2119,11 +2121,39 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	  // Other expressions than keys are not checked for consistency
 	  // FIXME: we still need to give the good name instead of symbolic_byte!
 	  else
-	    {	  
+	    {
+	      ref<Expr> ec = os->read8(idx2);
+	      ConstantExpr *ce = dyn_cast<ConstantExpr>(ec);
+	      ReadExpr *re = dyn_cast<ReadExpr>(ec);
+	      std::string target_name;
+
+	      if (re)
+		{
+		  target_name = re->updates.root->name;
+		  v = re;
+		  llvm::outs() << "---[ DATA: Recovered ReadExpr name " << target_name << "\n";
+		}
+	      else if (ce)
+		{
+		  llvm::outs() << "---[ DATA: Recovered ConstantExpr: assigning constant value \n";
+		  nos = bindObjectInState(ns, mo, false, NULL);
+		  nos->write8(idx2, byte->value);
+		  break;
+		}
+	      else
+		{
+		  llvm::outs() << "FIXME: DATA expression was neither constant nor a read - could not apply filter \n";
+		  terminateState(ns);
+		  return (false);
+		}
+	      
+	      // old stuff
+	      /*
 	      ss << std::string(obj->name) << "_symbolic_byte" << idx2;
 	      uniqueName = ss.str();
 	      array = arrayCache.CreateArray(uniqueName, 1);   // 1 byte array
 	      v = Expr::createTempRead(array, Expr::Int8);
+	      */
 	    }	 
 	  
 	  v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
@@ -2303,23 +2333,23 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	continue;
       
       // Print constraints available in store after state creation
-      llvm::outs() << "\n **** New state constraints after loading: **** \n";
-
       KInstruction   &prevPC = *(ns->prevPC);
       const char     *name = prevPC.inst->getOpcodeName();
       unsigned int   cnbr = ns->constraints.size();
       PTreeNode      *pt  = ns->ptreeNode;
       unsigned int  depth = ns->depth;
       
-      llvm::outs() << "\n[[[[[ New state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
-		   << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";      
-      
+      llvm::outs() << "\n **** New state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+		   << " depth: " << depth << " ptnode: " << pt << " **** \n";
+      llvm::outs() << " **** New state constraints after loading: **** \n";
+
       unsigned int i = 0;
       for (ConstraintManager::constraint_iterator it = ns->constraints.begin(); it != ns->constraints.end(); it++, i++)
 	{
 	  ref<Expr> e = *it;
-	  llvm::outs() << "\n ---[ Constraint " << i << ": " << e;
+	  llvm::outs() << " ---[ Constraint " << i << ": " << e << "\n";
 	}
+      llvm::outs() << "\n";
 
       //XXX: Uncomment if you want to stop after one ptest, for debug purpose
       //break;      
@@ -3847,6 +3877,7 @@ void Executor::run(ExecutionState &initialState) {
     ExecutionState &state = searcher->selectState();
     KInstruction *ki = state.pc;
 
+    /*
     KInstruction   &prevPC = *(state.prevPC);
     const char     *name = prevPC.inst->getOpcodeName();
     unsigned int   cnbr = state.constraints.size();
@@ -3854,8 +3885,9 @@ void Executor::run(ExecutionState &initialState) {
     unsigned int  depth = state.depth;
 
     llvm::outs() << "[[[[[ Executor::run now visiting state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
-		 << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n";
-    
+    << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n";
+    */
+      
     stepInstruction(state);
 
     executeInstruction(state, ki);
@@ -3957,6 +3989,7 @@ void Executor::continueState(ExecutionState &state){
 
 void Executor::terminateState(ExecutionState &state) {
 
+  /*
   KInstruction   &prevPC = (*state.prevPC);
   const char     *name = prevPC.inst->getOpcodeName();
   unsigned int   cnbr = state.constraints.size();
@@ -3964,6 +3997,7 @@ void Executor::terminateState(ExecutionState &state) {
   unsigned int  depth = state.depth;
   llvm::outs() << "[[[[[ terminateState opcode@pc: " << std::string(name) << " cnbr: " << cnbr
 	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
+  */
   
   if (replayKTest && replayPosition!=replayKTest->numObjects) {
     klee_warning_once(replayKTest,
@@ -3993,6 +4027,7 @@ void Executor::terminateState(ExecutionState &state) {
 void Executor::terminateStateEarly(ExecutionState &state, 
                                    const Twine &message) {
 
+  /*
   KInstruction   &prevPC = (*state.prevPC);
   const char     *name = prevPC.inst->getOpcodeName();
   unsigned int   cnbr = state.constraints.size();
@@ -4000,7 +4035,7 @@ void Executor::terminateStateEarly(ExecutionState &state,
   unsigned int  depth = state.depth;
   llvm::outs() << "[[[[[ terminateStateEarly opcode@pc: " << std::string(name) << " cnbr: " << cnbr
 	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
-
+  */
   
   if (!OnlyOutputStatesCoveringNew || state.coveredNew ||
       (AlwaysOutputSeeds && seedMap.count(&state)))
@@ -4011,6 +4046,7 @@ void Executor::terminateStateEarly(ExecutionState &state,
 
 void Executor::terminateStateOnExit(ExecutionState &state) {
 
+  /*
   KInstruction   &prevPC = (*state.prevPC);
   const char     *name = prevPC.inst->getOpcodeName();
   unsigned int   cnbr = state.constraints.size();
@@ -4018,6 +4054,7 @@ void Executor::terminateStateOnExit(ExecutionState &state) {
   unsigned int  depth = state.depth;
   llvm::outs() << "[[[[[ terminateStateOnExit opcode@pc: " << std::string(name) << " cnbr: " << cnbr
 	       << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n\n";
+  */
   
   if (!OnlyOutputStatesCoveringNew || state.coveredNew || 
       (AlwaysOutputSeeds && seedMap.count(&state)))
