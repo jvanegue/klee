@@ -349,7 +349,7 @@ const char *Executor::TerminateReasonNames[] = {
 void	Executor::SymbolicStubsRegister() {
   symStubs["atoi"] = 1;
   symStubs["strlen"] = 1;
-  symStubs["rand"] = 0;
+  //symStubs["rand"] = 0;
 }
 
 /* HKLEE: Persist/Reload API for constraint transfers */
@@ -462,6 +462,9 @@ Executor::Executor(LLVMContext &ctx, const InterpreterOptions &opts,
 
     SymbolicStubsRegister();
     TransferStubsRegister();
+
+    debug_mode = false;
+    
 }
 
 
@@ -570,7 +573,7 @@ void	Executor::doDumpEdges()
   *fd2 << "label=\"Full State Space \" \n";
   *fd2 << "} \n ";
   fd2->flush();
-  delete fd2;
+  delete fd2;    
   
   // Heap State Graph
   llvm::raw_fd_ostream *fd3 = interpreterHandler->openOutputFile("hklee-heap.gv");
@@ -588,7 +591,7 @@ void	Executor::doDumpEdges()
     {
       StringPair pair = it->first;
       std::string label = it->second;
-      *fd2 << " " << pair.first << " -> " << pair.second << " [label=\"" << label << "\"];\n";
+      *fd3 << " " << pair.first << " -> " << pair.second << " [label=\"" << label << "\"];\n"; 
     }
   *fd3 << "\n";
   *fd3 << "overlap=false \n";
@@ -1522,7 +1525,13 @@ void Executor::executeCall(ExecutionState &state,
       {
 	int idx = symStubs[f->getName()];
 	int arg = (idx == 0 ? 1 : state.stack.back().argAttrs[idx]);
-	(*debugHeapFile) << "1 " << f->getName() << " argAttrs[" << idx << "]  = " << arg << " framenbr = " << state.stack.size() << "\n";	
+	//(*debugHeapFile)
+	  llvm::outs()   << "HEAPDEBUG OOB LOC 1529: "
+			 << f->getName()
+			 << " argAttrs[" << idx
+			 << "]  = "
+			 << arg << " framenbr = "
+			 << state.stack.size() << "\n";	
       }
     
     // FIXME: I'm not really happy about this reliance on prevPC but it is ok, I
@@ -1981,8 +1990,8 @@ void Executor::ConstraintsStore(ExecutionState &state, KInstruction *ki, transfe
   SymbolicList list = state.symbolics;
 
   //for ((SymbolicList::iterator it = state.symbolics.begin(); it != state.symb
-
-  Symbolic &one = list[0];
+ 
+ Symbolic &one = list[0];
   Symbolic &two = list[1];
   Symbolic &thr = list[2];
   const MemoryObject *m1 = one.first;
@@ -2057,8 +2066,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
       
       // For now we just support constant value or symbolic, but more elaborate constraints will come
       switch (byte->otype)
-	{
-		  
+	{		  
 	  // Create a new symbolic
 	case PTestByte::SYM:
 	  ss << std::string(obj->name) << "_symbolic_byte" << idx2;
@@ -2103,7 +2111,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 		{
 		  target_name = re->updates.root->name;
 		  v = re;
-		  llvm::outs() << "---[ Recovered ReadExpr name " << target_name << "\n";
+		  llvm::outs() << "---[ Recovered KEY ReadExpr name " << target_name << "\n";
 		}
 	      else if (!ce && !re)
 		{
@@ -2116,16 +2124,46 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 		  llvm::outs() << "Key expression was constant and state is consistent with injected constraints \n";
 		  v = ce;
 		}
+	      
+	      // addAndCheck call will return true if the curcond is consistent with current path conditions	      
+	      v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
+	      curcond = EqExpr::create(v, v2);
+	      possible = ns.addAndcheckConstraint(curcond, 'P');
+	      if (possible == false)
+		{
+		  // DEBUG: Print constraints available in store after state creation
+		  llvm::outs() << "**** INFEASIBLE PATH: Dumping state constraints at byte " << idx2 << " **** \n";
+		  llvm::outs() << "TRIED ADDING KEY CONSTRAINT: " << curcond;		
+		  unsigned int i = 0;
+		  for (ConstraintManager::constraint_iterator it = ns.constraints.begin(); it != ns.constraints.end(); it++, i++)
+		    {
+		      ref<Expr> e = *it;
+		      llvm::outs() << "\n ---[ Constraint " << i << ": " << e;
+		    }	      
+		  llvm::outs() << "\n **** Impossible path was eliminated (EQ case) **** \n\n";
+		  terminateState(ns);
+		  return (false);
+		}
+	      llvm::outs() << "**** POSSIBLE PATH ENCOUNTERED at byte " << idx2 << " **** \n";
+	      
+	      nos = bindObjectInState(ns, mo, false, array);
+	      //os->write8(idx2, byte->value);
+	      nos->write8(idx2, byte->value);
+	      
+	      // Note: Array can be NULL and crash on getSymbolicSolution() -- do not enable unless update lists are tracked for Array
+	      //ns.addSymbolic(mo, array);
+	      
+	      llvm::outs() << "KEY: Added EQ constraint to byte index " << idx2 << " now has value " << byte->value << " in new state \n";		  
 	    }
 
-	  // Other expressions than keys are not checked for consistency
-	  // FIXME: we still need to give the good name instead of symbolic_byte!
+	  // Other expressions than keys are not checked for consistency - they are just defined that way
 	  else
 	    {
 	      ref<Expr> ec = os->read8(idx2);
 	      ConstantExpr *ce = dyn_cast<ConstantExpr>(ec);
 	      ReadExpr *re = dyn_cast<ReadExpr>(ec);
 	      std::string target_name;
+	      unsigned char curbyte = 0;
 
 	      if (re)
 		{
@@ -2135,14 +2173,42 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 		}
 	      else if (ce)
 		{
-		  llvm::outs() << "---[ DATA: Recovered ConstantExpr: assigning constant value \n";
+		  curbyte = (unsigned char) ce->getZExtValue(ce->getWidth());
+		  llvm::outs() << "---[ DATA: Recovered ConstantExpr: Was " << (int) curbyte << " Assigning " << byte->value << " at idx " << idx2 << "\n";
+
 		  nos = bindObjectInState(ns, mo, false, NULL);
-		  nos->write8(idx2, byte->value);
-		  break;
-		}
+
+		  ObjectState *wos = ns.addressSpace.getWriteable(mo, nos);
+		  wos->write8(idx2, byte->value);
+
+		  // NEW: CONFIRM WE WROTE THE RIGHT VALUE IN THE OBJECT STATE -- looks OK
+		  /*
+		  ec = nos->read8(idx2);
+		  ce = dyn_cast<ConstantExpr>(ec);
+		  curbyte = (unsigned char) ce->getZExtValue(ce->getWidth());
+		  llvm::outs() << "---[ DATA: (NOS) READING ConstantExpr: NOW IS " << (int) curbyte << " at idx " << idx2 << "\n";
+		  ec = wos->read8(idx2);
+		  ce = dyn_cast<ConstantExpr>(ec);
+		  curbyte = (unsigned char) ce->getZExtValue(ce->getWidth());
+		  llvm::outs() << "---[ DATA: (WOS) READING ConstantExpr: NOW IS " << (int) curbyte << " at idx " << idx2 << "\n";
+		  */
+
+		  // Here add the log stuff
+		  if (idx2 + 1 == obj->numBytes)
+		    {
+		      trackedMem[mo] = wos;
+		      debug_mode = true;
+		      
+		      llvm::outs() << "Added TRACKED Mem : mo "
+				   << mo << " = wos " << wos << "\n";
+		      
+		    }
+
+		}	      
+	      
 	      else
 		{
-		  llvm::outs() << "FIXME: DATA expression was neither constant nor a read - could not apply filter \n";
+		  llvm::outs() << "FIXME: DATA expression was neither constant nor a read - could not set value (terminate state) \n";
 		  terminateState(ns);
 		  return (false);
 		}
@@ -2155,39 +2221,7 @@ bool Executor::ConstraintLoadObj(ExecutionState &ns, ref<Expr> target, PTestObje
 	      v = Expr::createTempRead(array, Expr::Int8);
 	      */
 	    }	 
-	  
-	  v2   = ConstantExpr::create(byte->value, Expr::Int8);	  
-	  curcond = EqExpr::create(v, v2);
 
-	  // Will return true if the curcond is consistent with current path conditions
-	  possible = ns.addAndcheckConstraint(curcond, 'P');
-
-	  // DEBUG: Print constraints available in store after state creation
-	  if (possible == false)
-	    {
-	      llvm::outs() << "**** INFEASIBLE PATH: Dumping state constraints at byte " << idx2 << " **** \n";
-	      llvm::outs() << "TRIED ADDING CONSTRAINT: " << curcond;		
-	      unsigned int i = 0;
-	      for (ConstraintManager::constraint_iterator it = ns.constraints.begin(); it != ns.constraints.end(); it++, i++)
-		{
-		  ref<Expr> e = *it;
-		  llvm::outs() << "\n ---[ Constraint " << i << ": " << e;
-		}	      
-	      llvm::outs() << "\n **** Impossible path was eliminated (EQ case) **** \n\n";
-	      terminateState(ns);
-	      return (false);
-	    }
-	  llvm::outs() << "**** POSSIBLE PATH ENCOUNTERED at byte " << idx2 << " **** \n";
-	  
-	  nos = bindObjectInState(ns, mo, false, array);
-	  //os->write8(idx2, byte->value);
-	  nos->write8(idx2, byte->value);
-	  
-	  // Note: Array can be NULL and crash on getSymbolicSolution() -- do not enable unless update lists are tracked for Array
-	  //ns.addSymbolic(mo, array);
-	  
-	  llvm::outs() << "Added CONSTANT constraint to byte " << idx2 << " now has value "
-		       << byte->value << " (" << (int) byte->value << ") in new state \n";		  
 	  break;
 	  
 	default:
@@ -2326,8 +2360,8 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	      infeasible = true;
 	      break;
 	    }
-	}
-
+	
+}
       // Pass the ptest if loaded constraints are not satisfiable from our current state
       if (infeasible)
 	continue;
@@ -2351,6 +2385,12 @@ void Executor::ConstraintsLoad(ExecutionState &state, KInstruction *ki, transfer
 	}
       llvm::outs() << "\n";
 
+      // Add this to the state tracking list -- debug only
+      trackedNodes[pt] = true;
+
+      // Make sure the actual reserved memory is loaded with the values we gave to objects
+      //ns->addressSpace.copyOutConcretes();
+      
       //XXX: Uncomment if you want to stop after one ptest, for debug purpose
       //break;      
     }
@@ -2402,11 +2442,15 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 
   // Print LLVM instruction before symbolic execution
   Function *f = i->getParent()->getParent();
-  (*debugHeapFile) << "[PC:" << ki->info->assemblyLine << "] "
-                   //<< "[PC:" << (*state.pc).info->assemblyLine << "][PREVPC:" << (*state.prevPC).info->assemblyLine << "] "
-		   << "LLVM INSTR: " << i->getOpcodeName()
+
+  if (debug_mode)
+    {
+      llvm::outs() << "[PC:" << ki->info->assemblyLine << "] "
+    		   << i->getOpcodeName()
 		   << " (depth = " << state.stack.size() << ") Parent func = " << f->getName() << "\n";
-  debugHeapFile->flush();
+    }
+  
+  //debugHeapFile->flush();
   
   switch (i->getOpcode()) {
     // Control flow
@@ -2425,7 +2469,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
       assert(!caller && "caller set on initial stack frame");
       terminateStateOnExit(state);
     } else {
-      state.popFrame();
+      state.popFrame();           ///////////// MemoryObject nodes are deleted in there, causing UAF
 
       if (statsTracker)
         statsTracker->framePopped(state);
@@ -2474,7 +2518,9 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  else
 	    ret_is_symbolic = false;
 	  
-	  (*debugHeapFile) << "RETURN of " << str.c_str() << " is symbolic: " << ret_is_symbolic
+	  (*debugHeapFile) << "RETURN of "
+			   << str.c_str()
+			   << " is symbolic: " << ret_is_symbolic
 		           << " argAttrs[Idx]  = " << argAttrs[argIndex]
 		           << " SymStubOpt: " << SymStubs << "\n";
 	}
@@ -2709,7 +2755,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     std::string fct_src_name = (fparent == NULL ? "unknown_fsrc" : fparent->getName());
     std::string fct_dst_name = (f == NULL ? "unknown_fdst" : f->getName());
 
-    /* Transfer function for constraints */
+    /* First detect if we are calling a function with known transfer or symbolic marking */
     bool isTransferStub = (transStubs.find(fct_dst_name) != transStubs.end());
     transfer_t trans;
     if (isTransferStub)
@@ -2717,6 +2763,12 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	llvm::outs() << "FOUND transfer stub! \n";
 	trans = transStubs[fct_dst_name.c_str()];
       }
+    bool isSymStub = (symStubs.find(fct_dst_name) != symStubs.end());
+    if (isSymStub)
+      {
+	llvm::outs() << "FOUND sym stub! \n";
+      }
+    
 
     // Only print the part of the state space that is outside klee 
     if (fct_dst_name.find("klee") == std::string::npos &&
@@ -2761,13 +2813,13 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     // Continue Call logic as normal
     std::vector<bool> argAttrs;
     
-    if (f && (symStubs.find(f->getName()) != symStubs.end()))
+    if (isSymStub)
     {
       std::string funcName = f->getName();
       (*debugHeapFile) << "Executor::executeInstruction()::Call: calling " << funcName << "\n";
       unsigned numFormals = f->arg_size();
 
-      // This iterator gives us _static_ information about function arguments, e.g. its type
+      // Check whether a parameter is symbolic, and if so 
       llvm::Function::arg_iterator arg_it = f->arg_begin(); 
       for (unsigned i=0; i<numFormals; ++i) 
       {
@@ -2780,6 +2832,7 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
 	  if (!address)
 	    {
 	      (*debugHeapFile) << "Executor::executeInstruction()::Call: argument is a symbolic pointer!\n";
+	      argAttrs.push_back(true);
 	    }
 	  else
 	  {
@@ -2814,13 +2867,18 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     StackFrame &sf = state.stack.back();
     sf.argAttrs = argAttrs;
 
-    // XXX: Just debug
-    if (f && (symStubs.find(f->getName()) != symStubs.end()))
+    // XXX: Heap KLEE debug only
+    if (isSymStub)
       {
 	int idx = symStubs[f->getName()];
-	int arg = (idx == 0 ? 1 : state.stack.back().argAttrs[idx]);
+	int arg = (idx == 0 ? 1 : state.stack.back().argAttrs[idx]);  // OOB on arg
 	
-	(*debugHeapFile) << f->getName() << " argAttrs[" << idx << "]  = " << arg << " framenbr = " << state.stack.size() << "\n";	
+	//(*debugHeapFile)
+	llvm::outs()   << "HEAPDEBUG OOB: 2865 " << f->getName()
+		       << " argAttrs[" << idx
+		       << "]  = " << arg
+		       << " framenbr = " << state.stack.size() << "\n";
+	
 	KFunction *kf = sf.kf;
 	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
 	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
@@ -2837,7 +2895,6 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
         assert(fType && fpType && "unable to get function type");
 
         // XXX check result coercion
-
         // XXX this really needs thought and validation
         unsigned i=0;
         for (std::vector< ref<Expr> >::iterator
@@ -2862,27 +2919,32 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
           i++;
         }
       }
-      
-      if (f && (symStubs.find(f->getName()) != symStubs.end()))
-	{
-	  (*debugHeapFile) << "Now Going to executeCall for symbolic stub " << f->getName() << "\n";
-	}
+
+      // debug only
+      if (isSymStub)
+	(*debugHeapFile) << "Now Going to executeCall for symbolic stub " << f->getName() << "\n";
 
       if (!isTransferStub)
 	executeCall(state, ki, f, arguments);
-      else
-	llvm::outs() << "Did not call " << f->getName() << " but created ptest file \n";
 
-      if (f && (symStubs.find(f->getName()) != symStubs.end()))
+      // debug only
+      else
+	llvm::outs() << "Did not call " << f->getName() << " (used ptest file) \n";
+
+      // debug only
+      if (isSymStub)
       {
 	(*debugHeapFile) << "4 " << f->getName() << " framenbr = " << state.stack.size() << "\n";	
 	KFunction *kf = sf.kf;
 	std::string funcname = (kf == NULL || kf->function == NULL ? std::string("UNK") : std::string(kf->function->getName()));
 	(*debugHeapFile) << "ExecuteCall: StackFrame Function in which argAttrs are inserted = " << funcname << "\n";
       }
-      
-      
-    } else {
+       
+    }
+
+    // if (!f) -- that seems to be the case when function pointers are called
+    // In that case the state space is forked based on the value of the fptr    
+    else {
       ref<Expr> v = eval(ki, 0, state).value;
 
       ExecutionState *free = &state;
@@ -3179,6 +3241,38 @@ void Executor::executeInstruction(ExecutionState &state, KInstruction *ki) {
     ref<Expr> base = eval(ki, 0, state).value;
     state.getElmntPtrBases[ki->inst] = base;
 
+    // XXX: debug only
+    ObjectPair op;
+    bool success;
+    solver->setTimeout(coreSolverTimeout);
+    success = state.addressSpace.resolveOne(cast<ConstantExpr>(base), op);
+    solver->setTimeout(0);
+    assert(success && "[-] Failed to resolve memobject for Transfered GetElementPtr argument");
+    const MemoryObject *mo = op.first; //note: MemoryObject stores meta information about object (e.g. its size, and address)
+    if (trackedMem.find(mo) != trackedMem.end())
+      {
+	ObjectState *os = trackedMem[mo];
+	const ObjectState *os2 = op.second;	
+	ref<Expr> ec = os->read8(0);
+	ConstantExpr *ce = dyn_cast<ConstantExpr>(ec);
+	unsigned char curbyte = 0;	
+	ref<Expr> ec2 = os2->read8(0);
+	ConstantExpr *ce2 = dyn_cast<ConstantExpr>(ec2);
+	unsigned char curbyte2 = 0;	
+	if (ce && ce2)
+	  {
+	    curbyte = (unsigned char) ce->getZExtValue(ce->getWidth());
+	    unsigned int curint = (unsigned int) curbyte;
+	    curbyte2 = (unsigned char) ce2->getZExtValue(ce2->getWidth());
+	    unsigned int curint2 = (unsigned int) curbyte2;	    	    
+	    llvm::outs() << " TRACKED MEM " << mo << " OS " << os << " : Found byte value " << curint << " vs " << curint2 << " at offset 0 \n";
+	  }
+	else
+	  llvm::outs() << " TRACKED MEM : Could not find constant value for value at offset 0 \n";
+	fflush(stdout);
+	llvm::outs().flush();
+      }    
+    
     for (std::vector< std::pair<unsigned, uint64_t> >::iterator 
            it = kgepi->indices.begin(), ie = kgepi->indices.end(); 
          it != ie; ++it) {
@@ -3876,17 +3970,18 @@ void Executor::run(ExecutionState &initialState) {
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
     KInstruction *ki = state.pc;
-
-    /*
-    KInstruction   &prevPC = *(state.prevPC);
-    const char     *name = prevPC.inst->getOpcodeName();
+    const char     *name = ki->inst->getOpcodeName();
     unsigned int   cnbr = state.constraints.size();
     PTreeNode      *pt  = state.ptreeNode;
     unsigned int  depth = state.depth;
 
-    llvm::outs() << "[[[[[ Executor::run now visiting state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
-    << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n";
-    */
+    // JV: debug only
+    if (trackedNodes.find(pt) != trackedNodes.end())
+      {
+	//debug_mode = true;
+	llvm::outs() << "[[[[[ Executor::run now visiting state opcode@pc: " << std::string(name) << " cnbr: " << cnbr
+		     << " depth: " << depth << " ptnode: " << pt << " ]]]]] \n";
+      }
       
     stepInstruction(state);
 
@@ -4270,7 +4365,7 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
   unsigned n = interpreterOpts.MakeConcreteSymbolic;
   if (!n || replayKTest || replayPath)
     return e;
-
+  
   // right now, we don't replace symbolics (is there any reason to?)
   if (!isa<ConstantExpr>(e))
     return e;
@@ -4295,9 +4390,9 @@ ref<Expr> Executor::replaceReadWithSymbolic(ExecutionState &state,
 ObjectState *Executor::bindObjectInState(ExecutionState &state, 
                                          const MemoryObject *mo,
                                          bool SaidIsLocal,
-					  const Array *array) {
+					 const Array *array) {
   ObjectState *os = array ? new ObjectState(mo, array) : new ObjectState(mo);
-   state.addressSpace.bindObject(mo, os);
+  state.addressSpace.bindObject(mo, os);
 
    /*** H-KLEE: fine grained tracking of memory objects */
    bool isSymbolic = array ? true : false;
@@ -4322,7 +4417,10 @@ ObjectState *Executor::bindObjectInState(ExecutionState &state,
   // matter because all we use this list for is to unbind the object
   // on function return.
   if (SaidIsLocal)
-    state.stack.back().allocas.push_back(mo);
+    {
+      llvm::outs() << "bindObjectInState ADDING ALLOCA VARIABLE mo = " << mo << "\n";
+      state.stack.back().allocas.push_back(mo);
+    }
 
   // Update numObjects in stats tracker
   statsTracker->updateNumObjects(state.addressSpace.objects.size());

@@ -134,7 +134,8 @@ public:
   typedef std::vector<RefExpr>			     ExprList;
   typedef std::pair<const MemoryObject*, const Array*> Symbolic;
   typedef std::vector<Symbolic>			       SymbolicList;
-
+  typedef std::map<PTreeNode*,bool>		      PTNodeMap;
+  typedef std::map<const MemoryObject*,ObjectState*> MemStateMap;
   
   enum TerminateReason {
     Abort,
@@ -160,6 +161,7 @@ public:
   };
 
 private:
+  
   static const char *TerminateReasonNames[];
   
   class TimerInfo;
@@ -178,7 +180,7 @@ private:
   std::vector<TimerInfo*> timers;
   PTree *processTree;
 
-  /** Added in Heap KLEE */  
+  /** Added in Heap KLEE (HKLEE) */
   int				next_state_id;
   NodeMap			HeapStates;
   NodeMap			SymStates;
@@ -187,8 +189,14 @@ private:
   EdgeMap			SymEdges;
   EdgeMap			ControlEdges;
   SymbolicStubs			symStubs;
+
+  /** Added in Gather-Scather KLEE (GSKLEE) */
   TransferStubs			transStubs;
-  
+
+  /** Debug only **/
+  PTNodeMap			trackedNodes;
+  MemStateMap			trackedMem;
+  bool				debug_mode;   
   /**********************/
   
   /// Used to track states that have been added during the current

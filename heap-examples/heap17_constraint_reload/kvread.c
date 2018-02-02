@@ -16,13 +16,13 @@ int main(int argc, char *argv[])
   int klen = strlen(key);
   if (klen == 0)
     return (-1);
-  if (!strcmp(key, "fst"))
+  if (!strcmp(key, "AAA"))
     { 
       kv_read(key, value, &len);
       unsigned char fst = value[0];
       value[fst] = 0x00;
     }
-  else if (!strcmp(key, "snd"))
+  else if (!strcmp(key, "BBB"))
     {
       kv_read(key, value, &len);
       unsigned char snd = value[0];

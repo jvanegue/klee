@@ -362,7 +362,7 @@ void SpecialFunctionHandler::handleCloseMerge(ExecutionState &state,
   if (state.openMergeStack.empty()) {
     std::ostringstream warning;
     warning << &state << " ran into a close at " << i << " without a preceding open\n";
-    klee_warning(warning.str().c_str());
+    klee_warning("%s \n", warning.str().c_str());
   } else {
     state.openMergeStack.back()->addClosedState(&state, i);
     state.openMergeStack.pop_back();

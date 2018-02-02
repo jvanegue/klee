@@ -15,15 +15,15 @@ int main(int argc, char *argv[])
   int klen = strlen(key);
   if (klen == 0)
     return (-1);
-  if (!strcmp(key, "fst"))
+  if (!strcmp(key, "AAA"))
     {
-      char *value = "\xFFval";
+      char *value = "\xFFva1";
       int len = strlen(value);
       kv_write(key, value, len);
     }
-  else if (!strcmp(key, "snd"))
+  else if (!strcmp(key, "BBB"))
     {
-      char *value = "\x00val";
+      char *value = "\x00va2";
       int len = strlen(value);
       kv_write(key, value, len);
     }

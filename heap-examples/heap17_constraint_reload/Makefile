@@ -19,6 +19,14 @@ run:
 	@echo Calling kv-read example
 	@klee -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3
 
+debug_run:
+	@echo file `which klee` > klee.gdb
+	@echo b Executor.cpp:3220 >> klee.gdb
+	@echo b Executor.cpp:3940 >> klee.gdb
+	@echo r -track-edges -posix-runtime -libc=uclibc $(OBJ2) --sym-args 1 1 3  >> klee.gdb
+	@echo bt >> klee.gdb
+	gdb `which klee` -x klee.gdb
+
 debug_read:
 	@echo file `which klee` > klee.gdb
 	@echo b klee::Executor::terminateStateOnError >> klee.gdb
